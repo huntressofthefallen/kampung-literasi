@@ -2,21 +2,41 @@
 
 A Next.js-based registration system for Kampung Literasi sessions with MongoDB backend.
 
+![Registration Page](https://github.com/user-attachments/assets/bd546255-1cc6-41c9-9858-a9e3d592eb48)
+
 ## Features
 
-- **Public Registration Page**: Users can register for sessions with:
-  - Full Name
-  - Email
-  - Phone Number (+62 prefix required)
-  - Session selection with capacity limits
-  - One person (same Full Name) can only register for one session
+### 📝 Public Registration Page
+- **User Registration Form** with Full Name, Email, Phone Number (+62 prefix required), and Session selection
+- **Session Capacity Display** - shows available spots (e.g., "10/20")
+- **Unique Registration Rule** - One person (same Full Name) can only register for **one session**
+- **Capacity Limits** - Prevents registration when session is full
+- **Real-time Validation** - Immediate feedback on errors
+- **Responsive Design** - Works on desktop and mobile
 
-- **Admin Dashboard** (Password Protected):
-  - View all registrations
-  - Export data to Excel or CSV
-  - Manage sessions (add, edit, delete)
-  - Set session capacity limits
-  - Configure session date and time
+### 🔐 Admin Dashboard (Password Protected)
+- **Secure Access** - Password-protected admin panel
+- **Session Management:**
+  - ✅ Add new sessions with name, date, and time
+  - ✅ Set person limit for each session
+  - ✅ Edit existing sessions (change date/time/limit)
+  - ✅ Delete sessions
+- **Data Export:**
+  - ✅ Export all registrations to Excel (.xlsx)
+  - ✅ Export all registrations to CSV
+- **Registration Overview** - View all registrations in a table format
+- **Real-time Tracking** - See current registration count vs. capacity
+
+## Screenshots
+
+### Registration Success
+![Registration Success](https://github.com/user-attachments/assets/8d335b50-d94b-41e5-a4c4-0fc8412d4919)
+
+### Admin Dashboard
+![Admin Dashboard](https://github.com/user-attachments/assets/c15483d8-c87a-4c90-8c85-fa4d28872e6a)
+
+### Admin Login
+![Admin Login](https://github.com/user-attachments/assets/9e5105d0-4ad4-453f-b165-974e4c9343f0)
 
 ## Technologies
 
