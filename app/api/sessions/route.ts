@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       name,
       date: new Date(date),
       time,
-      limit: parseInt(limit),
+      limit: parseInt(limit, 10),
       currentRegistrations: 0,
     });
 

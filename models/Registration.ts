@@ -42,7 +42,9 @@ const RegistrationSchema = new Schema<IRegistration>(
   }
 );
 
-// Create a compound index to ensure one person can only register for one session
+// Create a unique index to ensure one person can only register for one session
+// Note: This prevents re-registration even if the person deletes their registration
+// If this behavior is not desired, consider using a compound index on fullName and sessionId
 RegistrationSchema.index({ fullName: 1 }, { unique: true });
 
 const Registration: Model<IRegistration> =

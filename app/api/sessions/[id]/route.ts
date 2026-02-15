@@ -18,7 +18,7 @@ export async function PUT(
         name,
         date: new Date(date),
         time,
-        limit: parseInt(limit),
+        limit: parseInt(limit, 10),
       },
       { new: true, runValidators: true }
     );

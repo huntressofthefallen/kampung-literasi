@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,8 +7,8 @@ export async function POST(request: NextRequest) {
 
     const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 
-    // In production, the password should be hashed
-    // For now, we'll use a simple comparison
+    // Simple password comparison
+    // For production, consider using a proper authentication system with hashed passwords
     const isValid = password === adminPassword;
 
     if (isValid) {
