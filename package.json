@@ -1,0 +1,47 @@
+{
+  "name": "kampung-literasi",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/huntressofthefallen/kampung-literasi.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "private": true,
+  "bugs": {
+    "url": "https://github.com/huntressofthefallen/kampung-literasi/issues"
+  },
+  "homepage": "https://github.com/huntressofthefallen/kampung-literasi#readme",
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/node": "^25.2.3",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "autoprefixer": "^10.4.24",
+    "bcryptjs": "^3.0.3",
+    "exceljs": "^4.4.0",
+    "mongoose": "^9.2.1",
+    "next": "^16.1.6",
+    "papaparse": "^5.5.3",
+    "postcss": "^8.5.6",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "tailwindcss": "^4.1.18",
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/papaparse": "^5.5.2",
+    "eslint": "^9.39.2",
+    "eslint-config-next": "^16.1.6"
+  }
+}
