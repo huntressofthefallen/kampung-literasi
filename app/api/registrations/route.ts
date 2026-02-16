@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Registration from '@/models/Registration';
 import Session from '@/models/Session';
+import { broadcastUpdate } from '@/lib/sse';
 
 export async function GET() {
   try {
@@ -12,7 +13,6 @@ export async function GET() {
     const formattedRegistrations = registrations.map((reg: any) => ({
       _id: reg._id,
       fullName: reg.fullName,
-      email: reg.email,
       phoneNumber: reg.phoneNumber,
       grade: reg.grade,
       sessionId: reg.sessionId._id,
@@ -36,22 +36,31 @@ export async function POST(request: NextRequest) {
   try {
     await dbConnect();
     const body = await request.json();
-    const { fullName, email, phoneNumber, grade, sessionId } = body;
+    const { students, phoneNumber, sessionId } = body;
 
-    if (!fullName || !email || !phoneNumber || !grade || !sessionId) {
+    // Validate input
+    if (!students || !Array.isArray(students) || students.length === 0) {
       return NextResponse.json(
-        { success: false, error: 'All fields are required' },
+        { success: false, error: 'At least one student is required' },
         { status: 400 }
       );
     }
 
-    // Check if person already registered
-    const existingRegistration = await Registration.findOne({ fullName });
-    if (existingRegistration) {
+    if (!phoneNumber || !sessionId) {
       return NextResponse.json(
-        { success: false, error: 'This person is already registered for a session' },
+        { success: false, error: 'Phone number and session are required' },
         { status: 400 }
       );
+    }
+
+    // Validate each student
+    for (const student of students) {
+      if (!student.fullName || !student.grade) {
+        return NextResponse.json(
+          { success: false, error: 'Each student must have a full name and grade' },
+          { status: 400 }
+        );
+      }
     }
 
     // Check if session exists and has capacity
@@ -63,38 +72,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (session.currentRegistrations >= session.limit) {
+    // Check if session has enough capacity for all students
+    const availableSpots = session.limit - session.currentRegistrations;
+    if (availableSpots < students.length) {
       return NextResponse.json(
-        { success: false, error: 'Session is full' },
+        { success: false, error: `Session only has ${availableSpots} spot(s) available, but you're trying to register ${students.length} student(s)` },
         { status: 400 }
       );
     }
 
-    // Create registration
-    const registration = await Registration.create({
-      fullName,
-      email,
-      phoneNumber,
-      grade,
-      sessionId,
-    });
+    // Create registrations for all students
+    const registrations = await Promise.all(
+      students.map((student: { fullName: string; grade: string }) =>
+        Registration.create({
+          fullName: student.fullName,
+          phoneNumber,
+          grade: student.grade,
+          sessionId,
+        })
+      )
+    );
 
-    // Update session count
+    // Update session count by the number of students
     await Session.findByIdAndUpdate(sessionId, {
-      $inc: { currentRegistrations: 1 },
+      $inc: { currentRegistrations: students.length },
     });
 
-    return NextResponse.json({ success: true, registration }, { status: 201 });
+    // Broadcast update to all connected clients
+    broadcastUpdate('all');
+
+    return NextResponse.json({ success: true, registrations, count: students.length }, { status: 201 });
   } catch (error: any) {
     console.error('Error creating registration:', error);
-
-    // Handle duplicate key error
-    if (error.code === 11000) {
-      return NextResponse.json(
-        { success: false, error: 'This person is already registered for a session' },
-        { status: 400 }
-      );
-    }
 
     return NextResponse.json(
       { success: false, error: 'Failed to create registration' },
@@ -122,6 +131,9 @@ export async function DELETE() {
 
     // Reset session registration counts
     await Session.updateMany({}, { $set: { currentRegistrations: 0 } });
+
+    // Broadcast update to all connected clients
+    broadcastUpdate('all');
 
     return NextResponse.json({
       success: true,

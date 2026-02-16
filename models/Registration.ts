@@ -3,7 +3,6 @@ import mongoose, { Schema, Model } from 'mongoose';
 export interface IRegistration {
   _id?: mongoose.Types.ObjectId;
   fullName: string;
-  email: string;
   phoneNumber: string;
   grade: string;
   sessionId: mongoose.Types.ObjectId;
@@ -20,12 +19,6 @@ const RegistrationSchema = new Schema<IRegistration>(
       type: String,
       required: [true, 'Full name is required'],
       trim: true,
-    },
-    email: {
-      type: String,
-      required: [true, 'Email is required'],
-      trim: true,
-      lowercase: true,
     },
     phoneNumber: {
       type: String,
@@ -48,10 +41,7 @@ const RegistrationSchema = new Schema<IRegistration>(
   }
 );
 
-// Create a unique index to ensure one person can only register for one session
-// Note: This prevents re-registration even if the person deletes their registration
-// If this behavior is not desired, consider using a compound index on fullName and sessionId
-RegistrationSchema.index({ fullName: 1 }, { unique: true });
+// Removed unique index to allow multiple students to register with same phone number and session
 
 const Registration: Model<IRegistration> =
   mongoose.models.Registration ||

@@ -9,9 +9,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const format = searchParams.get('format') || 'csv';
     const sessionId = searchParams.get('sessionId');
-    
+
     await dbConnect();
-    
+
     // Build query filter
     const query = sessionId ? { sessionId } : {};
     const registrations = await Registration.find(query).populate('sessionId');
@@ -19,7 +19,6 @@ export async function GET(request: NextRequest) {
     // Format data for export
     const data = registrations.map((reg: any) => ({
       'Full Name': reg.fullName,
-      'Email': reg.email,
       'Phone Number': reg.phoneNumber,
       'Grade': reg.grade,
       'Session': reg.sessionId.name,
@@ -36,7 +35,6 @@ export async function GET(request: NextRequest) {
       // Add headers
       worksheet.columns = [
         { header: 'Full Name', key: 'Full Name', width: 25 },
-        { header: 'Email', key: 'Email', width: 30 },
         { header: 'Phone Number', key: 'Phone Number', width: 20 },
         { header: 'Grade', key: 'Grade', width: 10 },
         { header: 'Session', key: 'Session', width: 30 },

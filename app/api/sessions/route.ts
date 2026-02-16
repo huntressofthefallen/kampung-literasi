@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Session from '@/models/Session';
+import { broadcastUpdate } from '@/lib/sse';
 
 export async function GET() {
   try {
@@ -36,6 +37,9 @@ export async function POST(request: NextRequest) {
       limit: parseInt(limit, 10),
       currentRegistrations: 0,
     });
+
+    // Broadcast update to all connected clients
+    broadcastUpdate('sessions');
 
     return NextResponse.json({ success: true, session }, { status: 201 });
   } catch (error) {

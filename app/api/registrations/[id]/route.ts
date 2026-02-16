@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Registration from '@/models/Registration';
 import Session from '@/models/Session';
+import { broadcastUpdate } from '@/lib/sse';
 
 export async function DELETE(
   request: NextRequest,
@@ -27,6 +28,9 @@ export async function DELETE(
 
     // Delete the registration
     await Registration.findByIdAndDelete(id);
+
+    // Broadcast update to all connected clients
+    broadcastUpdate('all');
 
     return NextResponse.json({ 
       success: true, 

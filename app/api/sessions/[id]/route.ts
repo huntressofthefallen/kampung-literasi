@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Session from '@/models/Session';
+import { broadcastUpdate } from '@/lib/sse';
 
 export async function PUT(
   request: NextRequest,
@@ -30,6 +31,9 @@ export async function PUT(
       );
     }
 
+    // Broadcast update to all connected clients
+    broadcastUpdate('sessions');
+
     return NextResponse.json({ success: true, session });
   } catch (error) {
     console.error('Error updating session:', error);
@@ -55,6 +59,9 @@ export async function DELETE(
         { status: 404 }
       );
     }
+
+    // Broadcast update to all connected clients
+    broadcastUpdate('sessions');
 
     return NextResponse.json({ success: true });
   } catch (error) {

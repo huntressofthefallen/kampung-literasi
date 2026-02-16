@@ -12,11 +12,14 @@ interface Session {
   currentRegistrations: number;
 }
 
+interface Student {
+  fullName: string;
+  grade: string;
+}
+
 export default function Home() {
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
+  const [students, setStudents] = useState<Student[]>([{ fullName: '', grade: '' }]);
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [grade, setGrade] = useState('');
   const [selectedSession, setSelectedSession] = useState('');
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(false);
@@ -25,6 +28,27 @@ export default function Home() {
 
   useEffect(() => {
     fetchSessions();
+
+    // Setup SSE connection for real-time updates
+    const eventSource = new EventSource('/api/sse');
+    
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      
+      // Refresh sessions when we receive updates
+      if (data.type === 'sessions' || data.type === 'all') {
+        fetchSessions();
+      }
+    };
+    
+    eventSource.onerror = () => {
+      console.error('SSE connection error');
+      // Browser will automatically reconnect
+    };
+    
+    return () => {
+      eventSource.close();
+    };
   }, []);
 
   const fetchSessions = async () => {
@@ -39,17 +63,44 @@ export default function Home() {
     }
   };
 
+  const addStudent = () => {
+    setStudents([...students, { fullName: '', grade: '' }]);
+  };
+
+  const removeStudent = (index: number) => {
+    if (students.length > 1) {
+      const newStudents = students.filter((_, i) => i !== index);
+      setStudents(newStudents);
+    }
+  };
+
+  const updateStudent = (index: number, field: 'fullName' | 'grade', value: string) => {
+    const newStudents = [...students];
+    newStudents[index][field] = value;
+    setStudents(newStudents);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage('');
 
     // Validation
-    if (!fullName || !email || !phoneNumber || !grade || !selectedSession) {
-      setMessage('Mohon lengkapi semua field');
+    if (!phoneNumber || !selectedSession) {
+      setMessage('Mohon lengkapi nomor telepon dan pilih jadwal');
       setMessageType('error');
       setLoading(false);
       return;
+    }
+
+    // Validate all students
+    for (const student of students) {
+      if (!student.fullName || !student.grade) {
+        setMessage('Mohon lengkapi nama dan kelas untuk semua siswa');
+        setMessageType('error');
+        setLoading(false);
+        return;
+      }
     }
 
     if (!phoneNumber.startsWith('+62')) {
@@ -66,10 +117,8 @@ export default function Home() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          fullName,
-          email,
+          students,
           phoneNumber,
-          grade,
           sessionId: selectedSession,
         }),
       });
@@ -77,12 +126,10 @@ export default function Home() {
       const data = await response.json();
 
       if (data.success) {
-        setMessage('Pendaftaran berhasil! Kami akan menghubungi Anda segera.');
+        setMessage(`Pendaftaran ${data.count} siswa berhasil! Kami akan menghubungi Anda segera.`);
         setMessageType('success');
-        setFullName('');
-        setEmail('');
+        setStudents([{ fullName: '', grade: '' }]);
         setPhoneNumber('');
-        setGrade('');
         setSelectedSession('');
         fetchSessions(); // Refresh session data
       } else {
@@ -159,34 +206,80 @@ export default function Home() {
               )}
 
               <form onSubmit={handleSubmit} className="space-y-6">
-                <div>
-                  <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                    Nama Lengkap <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    id="fullName"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Masukkan nama lengkap siswa"
-                    required
-                  />
-                </div>
+                {/* Students Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Data Siswa <span className="text-red-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={addStudent}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                      </svg>
+                      Tambah Siswa
+                    </button>
+                  </div>
 
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                    Email Orang Tua/Wali <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="contoh@email.com"
-                    required
-                  />
+                  {students.map((student, index) => (
+                    <div key={index} className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 space-y-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                          Siswa {index + 1}
+                        </h4>
+                        {students.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeStudent(index)}
+                            className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-sm font-medium"
+                          >
+                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+
+                      <div>
+                        <label htmlFor={`fullName-${index}`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                          Nama Lengkap <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          id={`fullName-${index}`}
+                          value={student.fullName}
+                          onChange={(e) => updateStudent(index, 'fullName', e.target.value)}
+                          className="w-full px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="Masukkan nama lengkap siswa"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor={`grade-${index}`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                          Kelas <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          id={`grade-${index}`}
+                          value={student.grade}
+                          onChange={(e) => updateStudent(index, 'grade', e.target.value)}
+                          className="w-full px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          required
+                        >
+                          <option value="">Pilih kelas</option>
+                          <option value="SD 1">SD 1</option>
+                          <option value="SD 2">SD 2</option>
+                          <option value="SD 3">SD 3</option>
+                          <option value="SD 4">SD 4</option>
+                          <option value="SD 5">SD 5</option>
+                          <option value="SD 6">SD 6</option>
+                        </select>
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
                 <div>
@@ -208,27 +301,6 @@ export default function Home() {
                   <p className="mt-1.5 text-sm text-yellow-500 dark:text-yellow-400">
                     *Pastikan nomor telepon aktif dan dapat dihubungi melalui WhatsApp, karena kami akan mengirimkan informasi kelas melalui WhatsApp.
                   </p>
-                </div>
-
-                <div>
-                  <label htmlFor="grade" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                    Kelas <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    id="grade"
-                    value={grade}
-                    onChange={(e) => setGrade(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  >
-                    <option value="">Pilih kelas</option>
-                    <option value="SD 1">SD 1</option>
-                    <option value="SD 2">SD 2</option>
-                    <option value="SD 3">SD 3</option>
-                    <option value="SD 4">SD 4</option>
-                    <option value="SD 5">SD 5</option>
-                    <option value="SD 6">SD 6</option>
-                  </select>
                 </div>
 
                 <div>

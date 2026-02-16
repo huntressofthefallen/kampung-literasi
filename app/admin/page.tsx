@@ -16,7 +16,6 @@ interface Session {
 interface Registration {
   _id: string;
   fullName: string;
-  email: string;
   phoneNumber: string;
   grade: string;
   sessionName: string;
@@ -38,6 +37,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [selectedExportSession, setSelectedExportSession] = useState('all');
+  const [selectedRegistrationSession, setSelectedRegistrationSession] = useState('all');
 
   // Form state for session
   const [sessionName, setSessionName] = useState('');
@@ -53,6 +53,31 @@ export default function AdminPage() {
       fetchData();
     }
   }, []);
+
+  useEffect(() => {
+    // Setup SSE connection for real-time updates when authenticated
+    if (!isAuthenticated) return;
+
+    const eventSource = new EventSource('/api/sse');
+    
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      
+      // Refresh data when we receive updates
+      if (data.type === 'sessions' || data.type === 'registrations' || data.type === 'all') {
+        fetchData();
+      }
+    };
+    
+    eventSource.onerror = () => {
+      console.error('SSE connection error');
+      // Browser will automatically reconnect
+    };
+    
+    return () => {
+      eventSource.close();
+    };
+  }, [isAuthenticated]);
 
   const fetchData = async () => {
     try {
@@ -606,7 +631,7 @@ export default function AdminPage() {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 sm:p-8 border border-gray-200 dark:border-gray-700">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
             <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">
-              Registrations ({registrations.length})
+              Registrations ({selectedRegistrationSession === 'all' ? registrations.length : registrations.filter(r => r.sessionName === sessions.find(s => s._id === selectedRegistrationSession)?.name).length})
             </h2>
             <button
               onClick={handleResetAllRegistrations}
@@ -615,12 +640,38 @@ export default function AdminPage() {
               Reset All
             </button>
           </div>
+
+          <div className="mb-4">
+            <label htmlFor="registrationSessionFilter" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Filter by Session
+            </label>
+            <select
+              id="registrationSessionFilter"
+              value={selectedRegistrationSession}
+              onChange={(e) => setSelectedRegistrationSession(e.target.value)}
+              className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+            >
+              <option value="all">All Sessions</option>
+              {sessions.map((session) => {
+                const sessionDate = new Date(session.date).toLocaleDateString('id-ID', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                });
+                const sessionRegistrations = registrations.filter(r => r.sessionName === session.name).length;
+                return (
+                  <option key={session._id} value={session._id}>
+                    {session.name} - {sessionDate} • {session.time} ({sessionRegistrations} registrations)
+                  </option>
+                );
+              })}
+            </select>
+          </div>
           <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-gray-800">
                 <tr>
                   <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm">Name</th>
-                  <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm">Email</th>
                   <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm">Phone</th>
                   <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm">Grade</th>
                   <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm">Session</th>
@@ -630,29 +681,43 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {registrations.map((reg) => (
-                  <tr key={reg._id} className="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                    <td className="px-4 py-3 text-gray-900 dark:text-white text-sm font-medium">{reg.fullName}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-sm">{reg.email}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-sm">{reg.phoneNumber}</td>
-                    <td className="px-4 py-3 text-gray-900 dark:text-white text-sm font-medium">{reg.grade}</td>
-                    <td className="px-4 py-3 text-gray-900 dark:text-white text-sm">{reg.sessionName}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-sm">
-                      {new Date(reg.sessionDate).toLocaleDateString('id-ID')} {reg.sessionTime}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-sm">
-                      {new Date(reg.createdAt).toLocaleString('id-ID')}
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => handleDeleteRegistration(reg._id)}
-                        className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium text-sm"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {registrations
+                  .filter((reg) => {
+                    if (selectedRegistrationSession === 'all') return true;
+                    const selectedSession = sessions.find(s => s._id === selectedRegistrationSession);
+                    return reg.sessionName === selectedSession?.name;
+                  })
+                  .map((reg) => (
+                    <tr key={reg._id} className="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                      <td className="px-4 py-3 text-gray-900 dark:text-white text-sm font-medium">{reg.fullName}</td>
+                      <td className="px-4 py-3 text-sm">
+                        <a
+                          href={`https://wa.me/${reg.phoneNumber.replace(/[^0-9]/g, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline"
+                        >
+                          {reg.phoneNumber}
+                        </a>
+                      </td>
+                      <td className="px-4 py-3 text-gray-900 dark:text-white text-sm font-medium">{reg.grade}</td>
+                      <td className="px-4 py-3 text-gray-900 dark:text-white text-sm">{reg.sessionName}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-sm">
+                        {new Date(reg.sessionDate).toLocaleDateString('id-ID')} {reg.sessionTime}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-sm">
+                        {new Date(reg.createdAt).toLocaleString('id-ID')}
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => handleDeleteRegistration(reg._id)}
+                          className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium text-sm"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
