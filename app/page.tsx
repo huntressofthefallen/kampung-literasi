@@ -328,7 +328,7 @@ export default function Home() {
                           value={session._id}
                           disabled={isFull}
                         >
-                          {session.name} - {sessionDate} jam {session.time} ({session.currentRegistrations}/{session.limit} {isFull ? '- PENUH' : ''})
+                          {session.name} - {sessionDate} jam {session.time} ({session.currentRegistrations}/{session.limit}{isFull ? '- PENUH' : ''})
                         </option>
                       );
                     })}
