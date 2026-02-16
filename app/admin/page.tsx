@@ -59,21 +59,21 @@ export default function AdminPage() {
     if (!isAuthenticated) return;
 
     const eventSource = new EventSource('/api/sse');
-    
+
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      
+
       // Refresh data when we receive updates
       if (data.type === 'sessions' || data.type === 'registrations' || data.type === 'all') {
         fetchData();
       }
     };
-    
+
     eventSource.onerror = () => {
       console.error('SSE connection error');
       // Browser will automatically reconnect
     };
-    
+
     return () => {
       eventSource.close();
     };

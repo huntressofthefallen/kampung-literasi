@@ -31,21 +31,21 @@ export default function Home() {
 
     // Setup SSE connection for real-time updates
     const eventSource = new EventSource('/api/sse');
-    
+
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      
+
       // Refresh sessions when we receive updates
       if (data.type === 'sessions' || data.type === 'all') {
         fetchSessions();
       }
     };
-    
+
     eventSource.onerror = () => {
       console.error('SSE connection error');
       // Browser will automatically reconnect
     };
-    
+
     return () => {
       eventSource.close();
     };

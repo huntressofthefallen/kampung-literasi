@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/kampung-literasi';
+const MONGODB_URI = process.env.MONGODB_URI;
 
 interface MongooseCache {
   conn: typeof mongoose | null;
@@ -26,6 +26,10 @@ async function dbConnect(): Promise<typeof mongoose> {
     const opts = {
       bufferCommands: false,
     };
+
+    if (!MONGODB_URI) {
+      throw new Error('MONGODB_URI environment variable is not set');
+    }
 
     cached.promise = mongoose.connect(MONGODB_URI, opts);
   }

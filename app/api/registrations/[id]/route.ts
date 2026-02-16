@@ -32,9 +32,9 @@ export async function DELETE(
     // Broadcast update to all connected clients
     broadcastUpdate('all');
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Registration deleted successfully' 
+    return NextResponse.json({
+      success: true,
+      message: 'Registration deleted successfully'
     });
   } catch (error) {
     console.error('Error deleting registration:', error);
