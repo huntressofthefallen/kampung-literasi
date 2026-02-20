@@ -3,9 +3,6 @@ import dbConnect from '@/lib/mongodb';
 import Registration from '@/models/Registration';
 import Session from '@/models/Session';
 
-// Use Edge runtime for better performance on Vercel
-export const runtime = 'edge';
-
 // Revalidate every 1 second (adjust as needed)
 export const revalidate = 1;
 
