@@ -3,8 +3,7 @@ import dbConnect from '@/lib/mongodb';
 import Registration from '@/models/Registration';
 import Session from '@/models/Session';
 
-// Revalidate every 1 second (adjust as needed)
-export const revalidate = 1;
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
