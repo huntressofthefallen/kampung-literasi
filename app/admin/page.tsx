@@ -18,10 +18,17 @@ interface Registration {
   fullName: string;
   phoneNumber: string;
   grade: string;
+  sessionId: string;
   sessionName: string;
   sessionDate: string;
   sessionTime: string;
   createdAt: string;
+}
+
+interface Alert {
+  id: number;
+  type: 'success' | 'error' | 'info';
+  message: string;
 }
 
 export default function AdminPage() {
@@ -39,6 +46,18 @@ export default function AdminPage() {
   const [selectedExportSession, setSelectedExportSession] = useState('all');
   const [selectedRegistrationSession, setSelectedRegistrationSession] = useState('all');
 
+  // Registration modal state
+  const [showAddRegistration, setShowAddRegistration] = useState(false);
+  const [editingRegistration, setEditingRegistration] = useState<Registration | null>(null);
+  const [regFullName, setRegFullName] = useState('');
+  const [regPhoneNumber, setRegPhoneNumber] = useState('');
+  const [regGrade, setRegGrade] = useState('');
+  const [regSessionId, setRegSessionId] = useState('');
+
+  // Alert state
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [alertIdCounter, setAlertIdCounter] = useState(0);
+
   // Sorting state
   const [sessionSortKey, setSessionSortKey] = useState<keyof Session | ''>('');
   const [sessionSortDirection, setSessionSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -51,12 +70,71 @@ export default function AdminPage() {
   const [sessionTime, setSessionTime] = useState('');
   const [sessionLimit, setSessionLimit] = useState('');
 
+  // Alert functions
+  const addAlert = (type: 'success' | 'error' | 'info', message: string) => {
+    const newAlert: Alert = {
+      id: alertIdCounter,
+      type,
+      message,
+    };
+    setAlerts((prev) => [...prev, newAlert]);
+    setAlertIdCounter((prev) => prev + 1);
+
+    // Auto-remove alert after 5 seconds
+    setTimeout(() => {
+      removeAlert(newAlert.id);
+    }, 5000);
+  };
+
+  const removeAlert = (id: number) => {
+    setAlerts((prev) => prev.filter((alert) => alert.id !== id));
+  };
+
+  // Phone number normalization
+  const normalizePhoneNumber = (phone: string): string => {
+    if (!phone || !phone.trim()) return phone;
+
+    // Remove all spaces, dashes, parentheses, and other non-numeric characters except +
+    let cleaned = phone.replace(/[\s\-()]/g, '');
+
+    // If already in correct format, return as is
+    if (cleaned.match(/^\+628\d+$/)) {
+      return cleaned;
+    }
+
+    // Remove any + symbols and leading zeros to work with just numbers
+    cleaned = cleaned.replace(/\+/g, '');
+
+    // Handle different starting patterns
+    if (cleaned.startsWith('62')) {
+      // Already has country code (62xxx...)
+      return '+' + cleaned;
+    } else if (cleaned.startsWith('0')) {
+      // Starts with 0 (08xxx...) - remove the 0 and add +62
+      return '+62' + cleaned.substring(1);
+    } else if (cleaned.startsWith('8')) {
+      // Starts with 8 (8xxx...) - add +62
+      return '+62' + cleaned;
+    }
+
+    // If it doesn't match expected patterns, return original
+    return phone;
+  };
+
+  const handlePhoneNumberBlur = () => {
+    // Only normalize when user leaves the field
+    if (regPhoneNumber.trim()) {
+      const normalized = normalizePhoneNumber(regPhoneNumber);
+      setRegPhoneNumber(normalized);
+    }
+  };
+
   // Sorting functions
   const handleSessionSort = (key: keyof Session) => {
     if (sessionSortKey === key) {
       setSessionSortDirection(sessionSortDirection === 'asc' ? 'desc' : 'asc');
     } else {
-      setSessionSortKey(key); 
+      setSessionSortKey(key);
       setSessionSortDirection('asc');
     }
   };
@@ -72,11 +150,11 @@ export default function AdminPage() {
 
   const getSortedSessions = () => {
     if (!sessionSortKey) return sessions;
-    
+
     return [...sessions].sort((a, b) => {
       const aValue = a[sessionSortKey];
       const bValue = b[sessionSortKey];
-      
+
       if (aValue < bValue) return sessionSortDirection === 'asc' ? -1 : 1;
       if (aValue > bValue) return sessionSortDirection === 'asc' ? 1 : -1;
       return 0;
@@ -91,11 +169,11 @@ export default function AdminPage() {
     });
 
     if (!registrationSortKey) return filtered;
-    
+
     return [...filtered].sort((a, b) => {
       const aValue = a[registrationSortKey];
       const bValue = b[registrationSortKey];
-      
+
       if (aValue < bValue) return registrationSortDirection === 'asc' ? -1 : 1;
       if (aValue > bValue) return registrationSortDirection === 'asc' ? 1 : -1;
       return 0;
@@ -110,7 +188,7 @@ export default function AdminPage() {
         </svg>
       );
     }
-    
+
     if (direction === 'asc') {
       return (
         <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -118,7 +196,7 @@ export default function AdminPage() {
         </svg>
       );
     }
-    
+
     return (
       <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -154,6 +232,11 @@ export default function AdminPage() {
       if (data.type === 'sessions' || data.type === 'registrations') {
         console.log('[Admin] Refreshing data due to', data.type, 'change');
         fetchData();
+
+        // Show alert based on the event type
+        if (data.type === 'registrations') {
+          addAlert('info', 'Data pendaftaran telah diperbarui');
+        }
       }
     };
 
@@ -179,7 +262,14 @@ export default function AdminPage() {
       const registrationsData = await registrationsRes.json();
 
       if (sessionsData.success) setSessions(sessionsData.sessions);
-      if (registrationsData.success) setRegistrations(registrationsData.registrations);
+      if (registrationsData.success) {
+        // Ensure registrations have sessionId field
+        const mappedRegistrations = registrationsData.registrations.map((reg: any) => ({
+          ...reg,
+          sessionId: reg.sessionId || reg._id,
+        }));
+        setRegistrations(mappedRegistrations);
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     }
@@ -360,6 +450,105 @@ export default function AdminPage() {
     resetSessionForm();
   };
 
+  // Registration management functions
+  const handleAddRegistration = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/registrations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          students: [{
+            fullName: regFullName,
+            grade: regGrade,
+          }],
+          phoneNumber: regPhoneNumber,
+          sessionId: regSessionId,
+          bypassLimit: true, // Allow admin to exceed session limit
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        addAlert('success', 'Pendaftaran berhasil ditambahkan');
+        setShowAddRegistration(false);
+        resetRegistrationForm();
+        fetchData();
+      } else {
+        addAlert('error', data.error || 'Gagal menambahkan pendaftaran');
+      }
+    } catch (error) {
+      addAlert('error', 'Terjadi kesalahan');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateRegistration = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRegistration) return;
+
+    setLoading(true);
+
+    try {
+      const response = await fetch(`/api/registrations/${editingRegistration._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fullName: regFullName,
+          phoneNumber: regPhoneNumber,
+          grade: regGrade,
+          sessionId: regSessionId,
+          bypassLimit: true, // Allow admin to exceed session limit
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        addAlert('success', 'Pendaftaran berhasil diperbarui');
+        setEditingRegistration(null);
+        resetRegistrationForm();
+        fetchData();
+      } else {
+        addAlert('error', data.error || 'Gagal memperbarui pendaftaran');
+      }
+    } catch (error) {
+      addAlert('error', 'Terjadi kesalahan');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startEditRegistration = (registration: Registration) => {
+    setEditingRegistration(registration);
+    setRegFullName(registration.fullName);
+    setRegPhoneNumber(registration.phoneNumber);
+    setRegGrade(registration.grade);
+    setRegSessionId(registration.sessionId);
+    setShowAddRegistration(false);
+  };
+
+  const resetRegistrationForm = () => {
+    setRegFullName('');
+    setRegPhoneNumber('');
+    setRegGrade('');
+    setRegSessionId('');
+  };
+
+  const cancelRegistrationEdit = () => {
+    setEditingRegistration(null);
+    setShowAddRegistration(false);
+    resetRegistrationForm();
+  };
+
   const handleDeleteRegistration = async (id: string) => {
     if (!confirm('Are you sure you want to delete this registration?')) return;
 
@@ -371,13 +560,13 @@ export default function AdminPage() {
       const data = await response.json();
 
       if (data.success) {
-        setMessage('Registration deleted successfully');
+        addAlert('success', 'Pendaftaran berhasil dihapus');
         fetchData();
       } else {
-        setMessage(data.error || 'Failed to delete registration');
+        addAlert('error', data.error || 'Gagal menghapus pendaftaran');
       }
     } catch (error) {
-      setMessage('An error occurred');
+      addAlert('error', 'Terjadi kesalahan');
     }
   };
 
@@ -529,6 +718,49 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* Alerts */}
+        <div className="fixed top-20 right-4 z-50 space-y-2 max-w-md">
+          {alerts.map((alert) => (
+            <div
+              key={alert.id}
+              className={`p-4 rounded-lg shadow-lg border flex items-start gap-3 animate-slide-in ${alert.type === 'success'
+                ? 'bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300 border-green-200 dark:border-green-700'
+                : alert.type === 'error'
+                  ? 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300 border-red-200 dark:border-red-700'
+                  : 'bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-700'
+                }`}
+            >
+              <div className="flex-shrink-0">
+                {alert.type === 'success' && (
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                )}
+                {alert.type === 'error' && (
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                )}
+                {alert.type === 'info' && (
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </div>
+              <div className="flex-1 font-medium text-sm">{alert.message}</div>
+              <button
+                onClick={() => removeAlert(alert.id)}
+                className="flex-shrink-0 hover:opacity-70 transition-opacity"
+                aria-label="Tutup"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+          ))}
+        </div>
+
         {/* Export Section */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 sm:p-8 mb-6 border border-gray-200 dark:border-gray-700">
           <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white mb-4">
@@ -677,7 +909,7 @@ export default function AdminPage() {
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-gray-800">
                 <tr>
-                  <th 
+                  <th
                     className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
                     onClick={() => handleSessionSort('name')}
                   >
@@ -686,7 +918,7 @@ export default function AdminPage() {
                       <SortIcon active={sessionSortKey === 'name'} direction={sessionSortDirection} />
                     </div>
                   </th>
-                  <th 
+                  <th
                     className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
                     onClick={() => handleSessionSort('date')}
                   >
@@ -695,7 +927,7 @@ export default function AdminPage() {
                       <SortIcon active={sessionSortKey === 'date'} direction={sessionSortDirection} />
                     </div>
                   </th>
-                  <th 
+                  <th
                     className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
                     onClick={() => handleSessionSort('time')}
                   >
@@ -704,7 +936,7 @@ export default function AdminPage() {
                       <SortIcon active={sessionSortKey === 'time'} direction={sessionSortDirection} />
                     </div>
                   </th>
-                  <th 
+                  <th
                     className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
                     onClick={() => handleSessionSort('currentRegistrations')}
                   >
@@ -754,13 +986,126 @@ export default function AdminPage() {
             <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">
               Registrations ({selectedRegistrationSession === 'all' ? registrations.length : registrations.filter(r => r.sessionName === sessions.find(s => s._id === selectedRegistrationSession)?.name).length})
             </h2>
-            <button
-              onClick={handleResetAllRegistrations}
-              className="w-full sm:w-auto px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium transition-colors"
-            >
-              Reset All
-            </button>
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+              <button
+                onClick={() => {
+                  setShowAddRegistration(true);
+                  setEditingRegistration(null);
+                  resetRegistrationForm();
+                }}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+              >
+                Add Registration
+              </button>
+              <button
+                onClick={handleResetAllRegistrations}
+                className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium transition-colors"
+              >
+                Reset All
+              </button>
+            </div>
           </div>
+
+          {/* Registration Modal */}
+          {(showAddRegistration || editingRegistration) && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+                <div className="p-6">
+                  <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
+                    {editingRegistration ? 'Edit Registration' : 'Add New Registration'}
+                  </h3>
+                  <form onSubmit={editingRegistration ? handleUpdateRegistration : handleAddRegistration} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Full Name
+                      </label>
+                      <input
+                        type="text"
+                        value={regFullName}
+                        onChange={(e) => setRegFullName(e.target.value)}
+                        className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Phone Number
+                      </label>
+                      <input
+                        type="tel"
+                        value={regPhoneNumber}
+                        onChange={(e) => setRegPhoneNumber(e.target.value)}
+                        onBlur={handlePhoneNumberBlur}
+                        className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                        placeholder="+628XXXXXXXXXX"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Grade
+                      </label>
+                      <select
+                        value={regGrade}
+                        onChange={(e) => setRegGrade(e.target.value)}
+                        className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                        required
+                      >
+                        <option value="">Select Grade</option>
+                        <option value="SD 1">SD 1</option>
+                        <option value="SD 2">SD 2</option>
+                        <option value="SD 3">SD 3</option>
+                        <option value="SD 4">SD 4</option>
+                        <option value="SD 5">SD 5</option>
+                        <option value="SD 6">SD 6</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Session
+                      </label>
+                      <select
+                        value={regSessionId}
+                        onChange={(e) => setRegSessionId(e.target.value)}
+                        className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                        required
+                      >
+                        <option value="">Select Session</option>
+                        {sessions.map((session) => {
+                          const sessionDate = new Date(session.date).toLocaleDateString('id-ID', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                          });
+                          return (
+                            <option key={session._id} value={session._id}>
+                              {session.name} - {sessionDate} • {session.time} ({session.currentRegistrations}/{session.limit})
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="flex-1 px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
+                      >
+                        {loading ? 'Saving...' : editingRegistration ? 'Update' : 'Add'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelRegistrationEdit}
+                        className="flex-1 px-6 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 font-medium transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="mb-4">
             <label htmlFor="registrationSessionFilter" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -792,7 +1137,7 @@ export default function AdminPage() {
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-gray-800">
                 <tr>
-                  <th 
+                  <th
                     className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
                     onClick={() => handleRegistrationSort('fullName')}
                   >
@@ -801,7 +1146,7 @@ export default function AdminPage() {
                       <SortIcon active={registrationSortKey === 'fullName'} direction={registrationSortDirection} />
                     </div>
                   </th>
-                  <th 
+                  <th
                     className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
                     onClick={() => handleRegistrationSort('phoneNumber')}
                   >
@@ -810,7 +1155,7 @@ export default function AdminPage() {
                       <SortIcon active={registrationSortKey === 'phoneNumber'} direction={registrationSortDirection} />
                     </div>
                   </th>
-                  <th 
+                  <th
                     className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
                     onClick={() => handleRegistrationSort('grade')}
                   >
@@ -819,7 +1164,7 @@ export default function AdminPage() {
                       <SortIcon active={registrationSortKey === 'grade'} direction={registrationSortDirection} />
                     </div>
                   </th>
-                  <th 
+                  <th
                     className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
                     onClick={() => handleRegistrationSort('sessionName')}
                   >
@@ -828,7 +1173,7 @@ export default function AdminPage() {
                       <SortIcon active={registrationSortKey === 'sessionName'} direction={registrationSortDirection} />
                     </div>
                   </th>
-                  <th 
+                  <th
                     className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
                     onClick={() => handleRegistrationSort('sessionDate')}
                   >
@@ -837,7 +1182,7 @@ export default function AdminPage() {
                       <SortIcon active={registrationSortKey === 'sessionDate'} direction={registrationSortDirection} />
                     </div>
                   </th>
-                  <th 
+                  <th
                     className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
                     onClick={() => handleRegistrationSort('createdAt')}
                   >
@@ -851,36 +1196,42 @@ export default function AdminPage() {
               </thead>
               <tbody>
                 {getSortedRegistrations().map((reg) => (
-                    <tr key={reg._id} className="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                      <td className="px-4 py-3 text-gray-900 dark:text-white text-sm font-medium">{reg.fullName}</td>
-                      <td className="px-4 py-3 text-sm">
-                        <a
-                          href={`https://wa.me/${reg.phoneNumber.replace(/[^0-9]/g, '')}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline"
-                        >
-                          {reg.phoneNumber}
-                        </a>
-                      </td>
-                      <td className="px-4 py-3 text-gray-900 dark:text-white text-sm font-medium">{reg.grade}</td>
-                      <td className="px-4 py-3 text-gray-900 dark:text-white text-sm">{reg.sessionName}</td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-sm">
-                        {new Date(reg.sessionDate).toLocaleDateString('id-ID')} {reg.sessionTime}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-sm">
-                        {new Date(reg.createdAt).toLocaleString('id-ID')}
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => handleDeleteRegistration(reg._id)}
-                          className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium text-sm"
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  <tr key={reg._id} className="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                    <td className="px-4 py-3 text-gray-900 dark:text-white text-sm font-medium">{reg.fullName}</td>
+                    <td className="px-4 py-3 text-sm">
+                      <a
+                        href={`https://wa.me/${reg.phoneNumber.replace(/[^0-9]/g, '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline"
+                      >
+                        {reg.phoneNumber}
+                      </a>
+                    </td>
+                    <td className="px-4 py-3 text-gray-900 dark:text-white text-sm font-medium">{reg.grade}</td>
+                    <td className="px-4 py-3 text-gray-900 dark:text-white text-sm">{reg.sessionName}</td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-sm">
+                      {new Date(reg.sessionDate).toLocaleDateString('id-ID')} {reg.sessionTime}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-sm">
+                      {new Date(reg.createdAt).toLocaleString('id-ID')}
+                    </td>
+                    <td className="px-4 py-3 space-x-2">
+                      <button
+                        onClick={() => startEditRegistration(reg)}
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium text-sm"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteRegistration(reg._id)}
+                        className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium text-sm"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

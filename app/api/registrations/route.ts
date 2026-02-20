@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
   try {
     await dbConnect();
     const body = await request.json();
-    const { students, phoneNumber, sessionId } = body;
+    const { students, phoneNumber, sessionId, bypassLimit } = body;
 
     // Validate input
     if (!students || !Array.isArray(students) || students.length === 0) {
@@ -114,13 +114,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if session has enough capacity for all students
-    const availableSpots = session.limit - session.currentRegistrations;
-    if (availableSpots < students.length) {
-      return NextResponse.json(
-        { success: false, error: `Sesi hanya memiliki ${availableSpots} tempat tersedia, tetapi Anda mencoba mendaftarkan ${students.length} siswa` },
-        { status: 400 }
-      );
+    // Check if session has enough capacity for all students (unless bypassLimit is true)
+    if (!bypassLimit) {
+      const availableSpots = session.limit - session.currentRegistrations;
+      if (availableSpots < students.length) {
+        return NextResponse.json(
+          { success: false, error: `Sesi hanya memiliki ${availableSpots} tempat tersedia, tetapi Anda mencoba mendaftarkan ${students.length} siswa` },
+          { status: 400 }
+        );
+      }
     }
 
     // Create registrations for all students
