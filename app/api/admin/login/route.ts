@@ -14,22 +14,22 @@ export async function POST(request: NextRequest) {
     if (isValid) {
       // Create a simple token (in production, use JWT or sessions)
       const token = Buffer.from(`admin:${Date.now()}`).toString('base64');
-      
-      return NextResponse.json({ 
-        success: true, 
+
+      return NextResponse.json({
+        success: true,
         token,
-        message: 'Login successful' 
+        message: 'Login berhasil'
       });
     } else {
       return NextResponse.json(
-        { success: false, error: 'Invalid password' },
+        { success: false, error: 'Kata sandi tidak valid' },
         { status: 401 }
       );
     }
   } catch (error) {
     console.error('Error during login:', error);
     return NextResponse.json(
-      { success: false, error: 'Login failed' },
+      { success: false, error: 'Login gagal' },
       { status: 500 }
     );
   }

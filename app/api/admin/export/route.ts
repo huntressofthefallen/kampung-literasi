@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error exporting data:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to export data' },
+      { success: false, error: 'Gagal mengekspor data' },
       { status: 500 }
     );
   }

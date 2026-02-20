@@ -16,7 +16,7 @@ export async function DELETE(
     const registration = await Registration.findById(id);
     if (!registration) {
       return NextResponse.json(
-        { success: false, error: 'Registration not found' },
+        { success: false, error: 'Pendaftaran tidak ditemukan' },
         { status: 404 }
       );
     }
@@ -34,12 +34,12 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message: 'Registration deleted successfully'
+      message: 'Pendaftaran berhasil dihapus'
     });
   } catch (error) {
     console.error('Error deleting registration:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to delete registration' },
+      { success: false, error: 'Gagal menghapus pendaftaran' },
       { status: 500 }
     );
   }

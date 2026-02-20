@@ -39,11 +39,92 @@ export default function AdminPage() {
   const [selectedExportSession, setSelectedExportSession] = useState('all');
   const [selectedRegistrationSession, setSelectedRegistrationSession] = useState('all');
 
+  // Sorting state
+  const [sessionSortKey, setSessionSortKey] = useState<keyof Session | ''>('');
+  const [sessionSortDirection, setSessionSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [registrationSortKey, setRegistrationSortKey] = useState<keyof Registration | ''>('');
+  const [registrationSortDirection, setRegistrationSortDirection] = useState<'asc' | 'desc'>('asc');
+
   // Form state for session
   const [sessionName, setSessionName] = useState('');
   const [sessionDate, setSessionDate] = useState('');
   const [sessionTime, setSessionTime] = useState('');
   const [sessionLimit, setSessionLimit] = useState('');
+
+  // Sorting functions
+  const handleSessionSort = (key: keyof Session) => {
+    if (sessionSortKey === key) {
+      setSessionSortDirection(sessionSortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSessionSortKey(key); 
+      setSessionSortDirection('asc');
+    }
+  };
+
+  const handleRegistrationSort = (key: keyof Registration) => {
+    if (registrationSortKey === key) {
+      setRegistrationSortDirection(registrationSortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setRegistrationSortKey(key);
+      setRegistrationSortDirection('asc');
+    }
+  };
+
+  const getSortedSessions = () => {
+    if (!sessionSortKey) return sessions;
+    
+    return [...sessions].sort((a, b) => {
+      const aValue = a[sessionSortKey];
+      const bValue = b[sessionSortKey];
+      
+      if (aValue < bValue) return sessionSortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sessionSortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  };
+
+  const getSortedRegistrations = () => {
+    const filtered = registrations.filter((reg) => {
+      if (selectedRegistrationSession === 'all') return true;
+      const selectedSession = sessions.find(s => s._id === selectedRegistrationSession);
+      return reg.sessionName === selectedSession?.name;
+    });
+
+    if (!registrationSortKey) return filtered;
+    
+    return [...filtered].sort((a, b) => {
+      const aValue = a[registrationSortKey];
+      const bValue = b[registrationSortKey];
+      
+      if (aValue < bValue) return registrationSortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return registrationSortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  };
+
+  const SortIcon = ({ active, direction }: { active: boolean; direction: 'asc' | 'desc' }) => {
+    if (!active) {
+      return (
+        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+        </svg>
+      );
+    }
+    
+    if (direction === 'asc') {
+      return (
+        <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+        </svg>
+      );
+    }
+    
+    return (
+      <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      </svg>
+    );
+  };
 
   useEffect(() => {
     // Check if user is authenticated
@@ -596,15 +677,47 @@ export default function AdminPage() {
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-gray-800">
                 <tr>
-                  <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm">Name</th>
-                  <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm">Date</th>
-                  <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm">Time</th>
-                  <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm">Capacity</th>
+                  <th 
+                    className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
+                    onClick={() => handleSessionSort('name')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Name
+                      <SortIcon active={sessionSortKey === 'name'} direction={sessionSortDirection} />
+                    </div>
+                  </th>
+                  <th 
+                    className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
+                    onClick={() => handleSessionSort('date')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Date
+                      <SortIcon active={sessionSortKey === 'date'} direction={sessionSortDirection} />
+                    </div>
+                  </th>
+                  <th 
+                    className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
+                    onClick={() => handleSessionSort('time')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Time
+                      <SortIcon active={sessionSortKey === 'time'} direction={sessionSortDirection} />
+                    </div>
+                  </th>
+                  <th 
+                    className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
+                    onClick={() => handleSessionSort('currentRegistrations')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Capacity
+                      <SortIcon active={sessionSortKey === 'currentRegistrations'} direction={sessionSortDirection} />
+                    </div>
+                  </th>
                   <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {sessions.map((session) => (
+                {getSortedSessions().map((session) => (
                   <tr key={session._id} className="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                     <td className="px-4 py-3 text-gray-900 dark:text-white text-sm font-medium">{session.name}</td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-sm">
@@ -679,23 +792,65 @@ export default function AdminPage() {
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-gray-800">
                 <tr>
-                  <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm">Name</th>
-                  <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm">Phone</th>
-                  <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm">Grade</th>
-                  <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm">Session</th>
-                  <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm">Date/Time</th>
-                  <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm">Registered</th>
+                  <th 
+                    className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
+                    onClick={() => handleRegistrationSort('fullName')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Name
+                      <SortIcon active={registrationSortKey === 'fullName'} direction={registrationSortDirection} />
+                    </div>
+                  </th>
+                  <th 
+                    className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
+                    onClick={() => handleRegistrationSort('phoneNumber')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Phone
+                      <SortIcon active={registrationSortKey === 'phoneNumber'} direction={registrationSortDirection} />
+                    </div>
+                  </th>
+                  <th 
+                    className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
+                    onClick={() => handleRegistrationSort('grade')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Grade
+                      <SortIcon active={registrationSortKey === 'grade'} direction={registrationSortDirection} />
+                    </div>
+                  </th>
+                  <th 
+                    className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
+                    onClick={() => handleRegistrationSort('sessionName')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Session
+                      <SortIcon active={registrationSortKey === 'sessionName'} direction={registrationSortDirection} />
+                    </div>
+                  </th>
+                  <th 
+                    className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
+                    onClick={() => handleRegistrationSort('sessionDate')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Date/Time
+                      <SortIcon active={registrationSortKey === 'sessionDate'} direction={registrationSortDirection} />
+                    </div>
+                  </th>
+                  <th 
+                    className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
+                    onClick={() => handleRegistrationSort('createdAt')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Registered
+                      <SortIcon active={registrationSortKey === 'createdAt'} direction={registrationSortDirection} />
+                    </div>
+                  </th>
                   <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {registrations
-                  .filter((reg) => {
-                    if (selectedRegistrationSession === 'all') return true;
-                    const selectedSession = sessions.find(s => s._id === selectedRegistrationSession);
-                    return reg.sessionName === selectedSession?.name;
-                  })
-                  .map((reg) => (
+                {getSortedRegistrations().map((reg) => (
                     <tr key={reg._id} className="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                       <td className="px-4 py-3 text-gray-900 dark:text-white text-sm font-medium">{reg.fullName}</td>
                       <td className="px-4 py-3 text-sm">

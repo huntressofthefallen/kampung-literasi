@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
         console.error('[SSE] Setup error:', error);
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({
           type: 'error',
-          message: 'Failed to setup real-time connection'
+          message: 'Gagal menyiapkan koneksi real-time'
         })}\n\n`));
       }
     },

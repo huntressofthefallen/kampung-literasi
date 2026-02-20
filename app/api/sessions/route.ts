@@ -11,7 +11,7 @@ export async function GET() {
   } catch (error) {
     console.error('Error fetching sessions:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch sessions' },
+      { success: false, error: 'Gagal mengambil data sesi' },
       { status: 500 }
     );
   }
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     if (!name || !date || !time || !limit) {
       return NextResponse.json(
-        { success: false, error: 'All fields are required' },
+        { success: false, error: 'Semua bidang wajib diisi' },
         { status: 400 }
       );
     }
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error creating session:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to create session' },
+      { success: false, error: 'Gagal membuat sesi' },
       { status: 500 }
     );
   }

@@ -26,7 +26,7 @@ export async function PUT(
 
     if (!session) {
       return NextResponse.json(
-        { success: false, error: 'Session not found' },
+        { success: false, error: 'Sesi tidak ditemukan' },
         { status: 404 }
       );
     }
@@ -38,7 +38,7 @@ export async function PUT(
   } catch (error) {
     console.error('Error updating session:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to update session' },
+      { success: false, error: 'Gagal memperbarui sesi' },
       { status: 500 }
     );
   }
@@ -55,7 +55,7 @@ export async function DELETE(
 
     if (!session) {
       return NextResponse.json(
-        { success: false, error: 'Session not found' },
+        { success: false, error: 'Sesi tidak ditemukan' },
         { status: 404 }
       );
     }
@@ -67,7 +67,7 @@ export async function DELETE(
   } catch (error) {
     console.error('Error deleting session:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to delete session' },
+      { success: false, error: 'Gagal menghapus sesi' },
       { status: 500 }
     );
   }

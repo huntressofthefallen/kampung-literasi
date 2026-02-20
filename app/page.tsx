@@ -71,6 +71,44 @@ export default function Home() {
     }
   };
 
+  const normalizePhoneNumber = (phone: string): string => {
+    if (!phone || !phone.trim()) return phone;
+    
+    // Remove all spaces, dashes, parentheses, and other non-numeric characters except +
+    let cleaned = phone.replace(/[\s\-()]/g, '');
+    
+    // If already in correct format, return as is
+    if (cleaned.match(/^\+628\d+$/)) {
+      return cleaned;
+    }
+    
+    // Remove any + symbols and leading zeros to work with just numbers
+    cleaned = cleaned.replace(/\+/g, '');
+    
+    // Handle different starting patterns
+    if (cleaned.startsWith('62')) {
+      // Already has country code (62xxx...)
+      return '+' + cleaned;
+    } else if (cleaned.startsWith('0')) {
+      // Starts with 0 (08xxx...) - remove the 0 and add +62
+      return '+62' + cleaned.substring(1);
+    } else if (cleaned.startsWith('8')) {
+      // Starts with 8 (8xxx...) - add +62
+      return '+62' + cleaned;
+    }
+    
+    // If it doesn't match expected patterns, return original
+    return phone;
+  };
+
+  const handlePhoneNumberBlur = () => {
+    // Only normalize when user leaves the field
+    if (phoneNumber.trim()) {
+      const normalized = normalizePhoneNumber(phoneNumber);
+      setPhoneNumber(normalized);
+    }
+  };
+
   const addStudent = () => {
     setStudents([...students, { fullName: '', grade: '' }]);
   };
@@ -111,8 +149,11 @@ export default function Home() {
       }
     }
 
-    if (!phoneNumber.startsWith('+62')) {
-      setMessage('Nomor telepon harus dimulai dengan +62');
+    // Normalize phone number before submission
+    const normalizedPhone = normalizePhoneNumber(phoneNumber);
+    
+    if (!normalizedPhone.startsWith('+62')) {
+      setMessage('Nomor telepon tidak valid');
       setMessageType('error');
       setLoading(false);
       return;
@@ -126,7 +167,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           students,
-          phoneNumber,
+          phoneNumber: normalizedPhone,
           sessionId: selectedSession,
         }),
       });
@@ -299,12 +340,13 @@ export default function Home() {
                     id="phoneNumber"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
+                    onBlur={handlePhoneNumberBlur}
                     className="w-full px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="+628123456789"
+                    placeholder="08123456789 atau +628123456789"
                     required
                   />
                   <p className="mt-1.5 text-sm text-gray-500 dark:text-gray-400">
-                    Format: +62 diikuti nomor telepon
+                    Format: 08xxx atau +628xxx (akan otomatis diformat)
                   </p>
                   <p className="mt-1.5 text-sm text-yellow-500 dark:text-yellow-400">
                     *Pastikan nomor telepon aktif dan dapat dihubungi melalui WhatsApp, karena kami akan mengirimkan informasi kelas melalui WhatsApp.

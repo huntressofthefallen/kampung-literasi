@@ -4,6 +4,37 @@ import Registration from '@/models/Registration';
 import Session from '@/models/Session';
 import { broadcastUpdate } from '@/lib/sse';
 
+// Normalize phone number to +628XXXXXXXXX format
+function normalizePhoneNumber(phone: string): string {
+  if (!phone || !phone.trim()) return phone;
+  
+  // Remove all spaces, dashes, parentheses, and other non-numeric characters except +
+  let cleaned = phone.replace(/[\s\-()]/g, '');
+  
+  // If already in correct format, return as is
+  if (cleaned.match(/^\+628\d+$/)) {
+    return cleaned;
+  }
+  
+  // Remove any + symbols and leading zeros to work with just numbers
+  cleaned = cleaned.replace(/\+/g, '');
+  
+  // Handle different starting patterns
+  if (cleaned.startsWith('62')) {
+    // Already has country code (62xxx...)
+    return '+' + cleaned;
+  } else if (cleaned.startsWith('0')) {
+    // Starts with 0 (08xxx...) - remove the 0 and add +62
+    return '+62' + cleaned.substring(1);
+  } else if (cleaned.startsWith('8')) {
+    // Starts with 8 (8xxx...) - add +62
+    return '+62' + cleaned;
+  }
+  
+  // If it doesn't match expected patterns, return original
+  return phone;
+}
+
 export async function GET() {
   try {
     await dbConnect();
@@ -26,7 +57,7 @@ export async function GET() {
   } catch (error) {
     console.error('Error fetching registrations:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch registrations' },
+      { success: false, error: 'Gagal mengambil data pendaftaran' },
       { status: 500 }
     );
   }
@@ -41,14 +72,25 @@ export async function POST(request: NextRequest) {
     // Validate input
     if (!students || !Array.isArray(students) || students.length === 0) {
       return NextResponse.json(
-        { success: false, error: 'At least one student is required' },
+        { success: false, error: 'Minimal satu siswa diperlukan' },
         { status: 400 }
       );
     }
 
     if (!phoneNumber || !sessionId) {
       return NextResponse.json(
-        { success: false, error: 'Phone number and session are required' },
+        { success: false, error: 'Nomor telepon dan sesi diperlukan' },
+        { status: 400 }
+      );
+    }
+
+    // Normalize phone number
+    const normalizedPhoneNumber = normalizePhoneNumber(phoneNumber);
+
+    // Validate normalized phone number
+    if (!normalizedPhoneNumber.startsWith('+62')) {
+      return NextResponse.json(
+        { success: false, error: 'Format nomor telepon tidak valid' },
         { status: 400 }
       );
     }
@@ -57,7 +99,7 @@ export async function POST(request: NextRequest) {
     for (const student of students) {
       if (!student.fullName || !student.grade) {
         return NextResponse.json(
-          { success: false, error: 'Each student must have a full name and grade' },
+          { success: false, error: 'Setiap siswa harus memiliki nama lengkap dan kelas' },
           { status: 400 }
         );
       }
@@ -67,7 +109,7 @@ export async function POST(request: NextRequest) {
     const session = await Session.findById(sessionId);
     if (!session) {
       return NextResponse.json(
-        { success: false, error: 'Session not found' },
+        { success: false, error: 'Sesi tidak ditemukan' },
         { status: 404 }
       );
     }
@@ -76,7 +118,7 @@ export async function POST(request: NextRequest) {
     const availableSpots = session.limit - session.currentRegistrations;
     if (availableSpots < students.length) {
       return NextResponse.json(
-        { success: false, error: `Session only has ${availableSpots} spot(s) available, but you're trying to register ${students.length} student(s)` },
+        { success: false, error: `Sesi hanya memiliki ${availableSpots} tempat tersedia, tetapi Anda mencoba mendaftarkan ${students.length} siswa` },
         { status: 400 }
       );
     }
@@ -86,7 +128,7 @@ export async function POST(request: NextRequest) {
       students.map((student: { fullName: string; grade: string }) =>
         Registration.create({
           fullName: student.fullName,
-          phoneNumber,
+          phoneNumber: normalizedPhoneNumber,
           grade: student.grade,
           sessionId,
         })
@@ -106,7 +148,7 @@ export async function POST(request: NextRequest) {
     console.error('Error creating registration:', error);
 
     return NextResponse.json(
-      { success: false, error: 'Failed to create registration' },
+      { success: false, error: 'Gagal membuat pendaftaran' },
       { status: 500 }
     );
   }
@@ -137,13 +179,13 @@ export async function DELETE() {
 
     return NextResponse.json({
       success: true,
-      message: 'All registrations deleted successfully',
+      message: 'Semua pendaftaran berhasil dihapus',
       deletedCount: registrations.length
     });
   } catch (error) {
     console.error('Error deleting all registrations:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to delete registrations' },
+      { success: false, error: 'Gagal menghapus pendaftaran' },
       { status: 500 }
     );
   }

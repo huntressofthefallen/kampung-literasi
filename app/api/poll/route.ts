@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('[Polling] Error:', error);
     return NextResponse.json(
-      { error: 'Failed to check for updates' },
+      { error: 'Gagal memeriksa pembaruan' },
       { status: 500 }
     );
   }
