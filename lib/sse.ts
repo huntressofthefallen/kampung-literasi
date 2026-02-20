@@ -1,25 +1,15 @@
-// Store active SSE connections
-let clients: ReadableStreamDefaultController[] = [];
+// This file is now deprecated - we use MongoDB Change Streams directly in the SSE endpoint
+// No need for manual broadcasting as database changes are automatically detected
 
 export function addClient(controller: ReadableStreamDefaultController) {
-  clients.push(controller);
+  // Deprecated - kept for backward compatibility
 }
 
 export function removeClient(controller: ReadableStreamDefaultController) {
-  clients = clients.filter(c => c !== controller);
+  // Deprecated - kept for backward compatibility
 }
 
 export function broadcastUpdate(type: 'sessions' | 'registrations' | 'all') {
-  const encoder = new TextEncoder();
-  const message = encoder.encode(`data: ${JSON.stringify({ type, timestamp: Date.now() })}\n\n`);
-
-  clients = clients.filter((controller) => {
-    try {
-      controller.enqueue(message);
-      return true;
-    } catch (error) {
-      // Client disconnected
-      return false;
-    }
-  });
+  // Deprecated - MongoDB Change Streams handle this automatically
+  // This function is now a no-op
 }

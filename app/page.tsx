@@ -29,24 +29,32 @@ export default function Home() {
   useEffect(() => {
     fetchSessions();
 
-    // Setup SSE connection for real-time updates
+    // Setup SSE connection for real-time updates via MongoDB Change Streams
+    console.log('[Home] Connecting to SSE...');
     const eventSource = new EventSource('/api/sse');
+
+    eventSource.onopen = () => {
+      console.log('[Home] SSE connection established');
+    };
 
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
+      console.log('[Home] SSE message:', data);
 
-      // Refresh sessions when we receive updates
-      if (data.type === 'sessions' || data.type === 'all') {
+      // Refresh sessions when we receive database change notifications
+      if (data.type === 'sessions' || data.type === 'registrations') {
+        console.log('[Home] Refreshing sessions due to', data.type, 'change');
         fetchSessions();
       }
     };
 
-    eventSource.onerror = () => {
-      console.error('SSE connection error');
-      // Browser will automatically reconnect
+    eventSource.onerror = (error) => {
+      console.error('[Home] SSE error:', error);
+      // EventSource automatically reconnects
     };
 
     return () => {
+      console.log('[Home] Closing SSE connection');
       eventSource.close();
     };
   }, []);

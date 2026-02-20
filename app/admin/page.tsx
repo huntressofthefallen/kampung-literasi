@@ -55,26 +55,34 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => {
-    // Setup SSE connection for real-time updates when authenticated
+    // Setup SSE connection for real-time updates via MongoDB Change Streams
     if (!isAuthenticated) return;
 
+    console.log('[Admin] Connecting to SSE...');
     const eventSource = new EventSource('/api/sse');
+
+    eventSource.onopen = () => {
+      console.log('[Admin] SSE connection established');
+    };
 
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
+      console.log('[Admin] SSE message:', data);
 
-      // Refresh data when we receive updates
-      if (data.type === 'sessions' || data.type === 'registrations' || data.type === 'all') {
+      // Refresh data when we receive database change notifications
+      if (data.type === 'sessions' || data.type === 'registrations') {
+        console.log('[Admin] Refreshing data due to', data.type, 'change');
         fetchData();
       }
     };
 
-    eventSource.onerror = () => {
-      console.error('SSE connection error');
-      // Browser will automatically reconnect
+    eventSource.onerror = (error) => {
+      console.error('[Admin] SSE error:', error);
+      // EventSource automatically reconnects
     };
 
     return () => {
+      console.log('[Admin] Closing SSE connection');
       eventSource.close();
     };
   }, [isAuthenticated]);
