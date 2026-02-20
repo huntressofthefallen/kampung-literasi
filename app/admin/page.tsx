@@ -152,8 +152,12 @@ export default function AdminPage() {
     if (!sessionSortKey) return sessions;
 
     return [...sessions].sort((a, b) => {
-      const aValue = a[sessionSortKey];
-      const bValue = b[sessionSortKey];
+      let aValue = a[sessionSortKey];
+      let bValue = b[sessionSortKey];
+
+      // Convert to lowercase for case-insensitive comparison if strings
+      if (typeof aValue === 'string') aValue = aValue.toLowerCase();
+      if (typeof bValue === 'string') bValue = bValue.toLowerCase();
 
       if (aValue < bValue) return sessionSortDirection === 'asc' ? -1 : 1;
       if (aValue > bValue) return sessionSortDirection === 'asc' ? 1 : -1;
@@ -171,8 +175,12 @@ export default function AdminPage() {
     if (!registrationSortKey) return filtered;
 
     return [...filtered].sort((a, b) => {
-      const aValue = a[registrationSortKey];
-      const bValue = b[registrationSortKey];
+      let aValue = a[registrationSortKey];
+      let bValue = b[registrationSortKey];
+
+      // Convert to lowercase for case-insensitive comparison if strings
+      if (typeof aValue === 'string') aValue = aValue.toLowerCase();
+      if (typeof bValue === 'string') bValue = bValue.toLowerCase();
 
       if (aValue < bValue) return registrationSortDirection === 'asc' ? -1 : 1;
       if (aValue > bValue) return registrationSortDirection === 'asc' ? 1 : -1;
