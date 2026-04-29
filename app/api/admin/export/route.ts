@@ -16,16 +16,18 @@ export async function GET(request: NextRequest) {
     const query = sessionId ? { sessionId } : {};
     const registrations = await Registration.find(query).populate('sessionId');
 
-    // Format data for export
-    const data = registrations.map((reg: any) => ({
-      'Full Name': reg.fullName,
-      'Phone Number': reg.phoneNumber,
-      'Grade': reg.grade,
-      'Session': reg.sessionId.name,
-      'Session Date': new Date(reg.sessionId.date).toLocaleDateString(),
-      'Session Time': reg.sessionId.time,
-      'Registered At': new Date(reg.createdAt).toLocaleString(),
-    }));
+    // Format data for export, skipping registrations whose session was deleted
+    const data = registrations
+      .filter((reg: any) => reg.sessionId != null)
+      .map((reg: any) => ({
+        'Full Name': reg.fullName,
+        'Phone Number': reg.phoneNumber,
+        'Grade': reg.grade,
+        'Session': reg.sessionId.name,
+        'Session Date': new Date(reg.sessionId.date).toLocaleDateString(),
+        'Session Time': reg.sessionId.time,
+        'Registered At': new Date(reg.createdAt).toLocaleString(),
+      }));
 
     if (format === 'excel') {
       // Create Excel workbook

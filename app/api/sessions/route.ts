@@ -3,10 +3,13 @@ import dbConnect from '@/lib/mongodb';
 import Session from '@/models/Session';
 import { broadcastUpdate } from '@/lib/sse';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     await dbConnect();
-    const sessions = await Session.find({}).sort({ date: 1 });
+    const { searchParams } = new URL(request.url);
+    const showAll = searchParams.get('all') === 'true';
+    const query = showAll ? {} : { isActive: true };
+    const sessions = await Session.find(query).sort({ date: 1 });
     return NextResponse.json({ success: true, sessions });
   } catch (error) {
     console.error('Error fetching sessions:', error);

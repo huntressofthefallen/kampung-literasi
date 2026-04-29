@@ -7,6 +7,7 @@ export interface ISession {
   time: string;
   limit: number;
   currentRegistrations: number;
+  isActive: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -35,6 +36,10 @@ const SessionSchema = new Schema<ISession>(
       type: Number,
       default: 0,
       min: 0,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
     },
   },
   {

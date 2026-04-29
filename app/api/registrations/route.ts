@@ -7,18 +7,18 @@ import { broadcastUpdate } from '@/lib/sse';
 // Normalize phone number to +628XXXXXXXXX format
 function normalizePhoneNumber(phone: string): string {
   if (!phone || !phone.trim()) return phone;
-  
+
   // Remove all spaces, dashes, parentheses, and other non-numeric characters except +
   let cleaned = phone.replace(/[\s\-()]/g, '');
-  
+
   // If already in correct format, return as is
   if (cleaned.match(/^\+628\d+$/)) {
     return cleaned;
   }
-  
+
   // Remove any + symbols and leading zeros to work with just numbers
   cleaned = cleaned.replace(/\+/g, '');
-  
+
   // Handle different starting patterns
   if (cleaned.startsWith('62')) {
     // Already has country code (62xxx...)
@@ -30,7 +30,7 @@ function normalizePhoneNumber(phone: string): string {
     // Starts with 8 (8xxx...) - add +62
     return '+62' + cleaned;
   }
-  
+
   // If it doesn't match expected patterns, return original
   return phone;
 }
@@ -40,18 +40,20 @@ export async function GET() {
     await dbConnect();
     const registrations = await Registration.find({}).populate('sessionId');
 
-    // Format the response with session details
-    const formattedRegistrations = registrations.map((reg: any) => ({
-      _id: reg._id,
-      fullName: reg.fullName,
-      phoneNumber: reg.phoneNumber,
-      grade: reg.grade,
-      sessionId: reg.sessionId._id,
-      sessionName: reg.sessionId.name,
-      sessionDate: reg.sessionId.date,
-      sessionTime: reg.sessionId.time,
-      createdAt: reg.createdAt,
-    }));
+    // Format the response with session details, skip registrations whose session was deleted
+    const formattedRegistrations = registrations
+      .filter((reg: any) => reg.sessionId != null)
+      .map((reg: any) => ({
+        _id: reg._id,
+        fullName: reg.fullName,
+        phoneNumber: reg.phoneNumber,
+        grade: reg.grade,
+        sessionId: reg.sessionId._id,
+        sessionName: reg.sessionId.name,
+        sessionDate: reg.sessionId.date,
+        sessionTime: reg.sessionId.time,
+        createdAt: reg.createdAt,
+      }));
 
     return NextResponse.json({ success: true, registrations: formattedRegistrations });
   } catch (error) {

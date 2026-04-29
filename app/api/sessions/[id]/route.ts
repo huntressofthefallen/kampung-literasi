@@ -3,6 +3,40 @@ import dbConnect from '@/lib/mongodb';
 import Session from '@/models/Session';
 import { broadcastUpdate } from '@/lib/sse';
 
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    await dbConnect();
+    const { id } = await params;
+
+    const session = await Session.findById(id);
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'Sesi tidak ditemukan' },
+        { status: 404 }
+      );
+    }
+
+    const updatedSession = await Session.findByIdAndUpdate(
+      id,
+      { isActive: !session.isActive },
+      { new: true }
+    );
+
+    broadcastUpdate('sessions');
+
+    return NextResponse.json({ success: true, session: updatedSession });
+  } catch (error) {
+    console.error('Error toggling session:', error);
+    return NextResponse.json(
+      { success: false, error: 'Gagal mengubah status sesi' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

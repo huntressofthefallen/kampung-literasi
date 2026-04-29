@@ -11,6 +11,7 @@ interface Session {
   time: string;
   limit: number;
   currentRegistrations: number;
+  isActive: boolean;
 }
 
 interface Registration {
@@ -44,7 +45,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [selectedExportSession, setSelectedExportSession] = useState('all');
-  const [selectedRegistrationSession, setSelectedRegistrationSession] = useState('all');
+  const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
 
   // Registration modal state
   const [showAddRegistration, setShowAddRegistration] = useState(false);
@@ -61,8 +62,6 @@ export default function AdminPage() {
   // Sorting state
   const [sessionSortKey, setSessionSortKey] = useState<keyof Session | ''>('');
   const [sessionSortDirection, setSessionSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [registrationSortKey, setRegistrationSortKey] = useState<keyof Registration | ''>('');
-  const [registrationSortDirection, setRegistrationSortDirection] = useState<'asc' | 'desc'>('asc');
 
   // Form state for session
   const [sessionName, setSessionName] = useState('');
@@ -139,15 +138,6 @@ export default function AdminPage() {
     }
   };
 
-  const handleRegistrationSort = (key: keyof Registration) => {
-    if (registrationSortKey === key) {
-      setRegistrationSortDirection(registrationSortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setRegistrationSortKey(key);
-      setRegistrationSortDirection('asc');
-    }
-  };
-
   const getSortedSessions = () => {
     if (!sessionSortKey) return sessions;
 
@@ -161,29 +151,6 @@ export default function AdminPage() {
 
       if (aValue < bValue) return sessionSortDirection === 'asc' ? -1 : 1;
       if (aValue > bValue) return sessionSortDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
-  };
-
-  const getSortedRegistrations = () => {
-    const filtered = registrations.filter((reg) => {
-      if (selectedRegistrationSession === 'all') return true;
-      const selectedSession = sessions.find(s => s._id === selectedRegistrationSession);
-      return reg.sessionName === selectedSession?.name;
-    });
-
-    if (!registrationSortKey) return filtered;
-
-    return [...filtered].sort((a, b) => {
-      let aValue = a[registrationSortKey];
-      let bValue = b[registrationSortKey];
-
-      // Convert to lowercase for case-insensitive comparison if strings
-      if (typeof aValue === 'string') aValue = aValue.toLowerCase();
-      if (typeof bValue === 'string') bValue = bValue.toLowerCase();
-
-      if (aValue < bValue) return registrationSortDirection === 'asc' ? -1 : 1;
-      if (aValue > bValue) return registrationSortDirection === 'asc' ? 1 : -1;
       return 0;
     });
   };
@@ -262,7 +229,7 @@ export default function AdminPage() {
   const fetchData = async () => {
     try {
       const [sessionsRes, registrationsRes] = await Promise.all([
-        fetch('/api/sessions'),
+        fetch('/api/sessions?all=true'),
         fetch('/api/registrations'),
       ]);
 
@@ -597,6 +564,39 @@ export default function AdminPage() {
     } catch (error) {
       setMessage('An error occurred');
     }
+  };
+
+  const handleToggleSession = async (id: string) => {
+    try {
+      const response = await fetch(`/api/sessions/${id}`, { method: 'PATCH' });
+      const data = await response.json();
+      if (data.success) {
+        fetchData();
+      } else {
+        addAlert('error', data.error || 'Gagal mengubah status sesi');
+      }
+    } catch (error) {
+      addAlert('error', 'Terjadi kesalahan');
+    }
+  };
+
+  const toggleExpandedSession = (id: string) => {
+    setExpandedSessions((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleAddRegistrationForSession = (sessionId: string) => {
+    setShowAddRegistration(true);
+    setEditingRegistration(null);
+    resetRegistrationForm();
+    setRegSessionId(sessionId);
   };
 
   if (!isAuthenticated) {
@@ -953,6 +953,7 @@ export default function AdminPage() {
                       <SortIcon active={sessionSortKey === 'currentRegistrations'} direction={sessionSortDirection} />
                     </div>
                   </th>
+                  <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm">Status</th>
                   <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm">Actions</th>
                 </tr>
               </thead>
@@ -967,12 +968,23 @@ export default function AdminPage() {
                     <td className="px-4 py-3 text-gray-900 dark:text-white text-sm font-medium">
                       {session.currentRegistrations}/{session.limit}
                     </td>
-                    <td className="px-4 py-3 space-x-2">
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${session.isActive ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'}`}>
+                        {session.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 space-x-2 whitespace-nowrap">
                       <button
                         onClick={() => startEditSession(session)}
                         className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium text-sm"
                       >
                         Edit
+                      </button>
+                      <button
+                        onClick={() => handleToggleSession(session._id)}
+                        className={`font-medium text-sm ${session.isActive ? 'text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300' : 'text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'}`}
+                      >
+                        {session.isActive ? 'Deactivate' : 'Activate'}
                       </button>
                       <button
                         onClick={() => handleDeleteSession(session._id)}
@@ -988,11 +1000,11 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Registrations List */}
+        {/* Registrations by Session */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 sm:p-8 border border-gray-200 dark:border-gray-700">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">
-              Registrations ({selectedRegistrationSession === 'all' ? registrations.length : registrations.filter(r => r.sessionName === sessions.find(s => s._id === selectedRegistrationSession)?.name).length})
+              Registrations ({registrations.length} total)
             </h2>
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
               <button
@@ -1115,134 +1127,120 @@ export default function AdminPage() {
             </div>
           )}
 
-          <div className="mb-4">
-            <label htmlFor="registrationSessionFilter" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Filter by Session
-            </label>
-            <select
-              id="registrationSessionFilter"
-              value={selectedRegistrationSession}
-              onChange={(e) => setSelectedRegistrationSession(e.target.value)}
-              className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-            >
-              <option value="all">All Sessions</option>
+          {/* Sessions Accordion */}
+          {sessions.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">No sessions yet. Create a session first.</p>
+          ) : (
+            <div className="space-y-3">
               {sessions.map((session) => {
+                const sessionRegs = registrations.filter((r) => r.sessionId === session._id);
+                const isExpanded = expandedSessions.has(session._id);
                 const sessionDate = new Date(session.date).toLocaleDateString('id-ID', {
                   day: 'numeric',
                   month: 'short',
                   year: 'numeric',
                 });
-                const sessionRegistrations = registrations.filter(r => r.sessionName === session.name).length;
+
                 return (
-                  <option key={session._id} value={session._id}>
-                    {session.name} - {sessionDate} • {session.time} ({sessionRegistrations} registrations)
-                  </option>
+                  <div key={session._id} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                    {/* Accordion Header */}
+                    <div
+                      className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      onClick={() => toggleExpandedSession(session._id)}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <svg
+                          className={`w-4 h-4 text-gray-500 dark:text-gray-400 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                        <div className="min-w-0">
+                          <div className="font-semibold text-gray-900 dark:text-white text-sm">{session.name}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            {sessionDate} • {session.time} • {sessionRegs.length}/{session.limit} registered
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0 ml-3" onClick={(e) => e.stopPropagation()}>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${session.isActive ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'}`}>
+                          {session.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                        <button
+                          onClick={() => handleAddRegistrationForSession(session._id)}
+                          className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                          + Add
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Accordion Content */}
+                    {isExpanded && (
+                      <div className="border-t border-gray-200 dark:border-gray-700">
+                        {sessionRegs.length === 0 ? (
+                          <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-6">
+                            No registrations for this session yet.
+                          </p>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="w-full">
+                              <thead className="bg-gray-50 dark:bg-gray-800/50">
+                                <tr>
+                                  <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</th>
+                                  <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Phone</th>
+                                  <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Grade</th>
+                                  <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Registered</th>
+                                  <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {sessionRegs.map((reg) => (
+                                  <tr key={reg._id} className="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                    <td className="px-4 py-3 text-gray-900 dark:text-white text-sm font-medium">{reg.fullName}</td>
+                                    <td className="px-4 py-3 text-sm">
+                                      <a
+                                        href={`https://wa.me/${reg.phoneNumber.replace(/[^0-9]/g, '')}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline"
+                                      >
+                                        {reg.phoneNumber}
+                                      </a>
+                                    </td>
+                                    <td className="px-4 py-3 text-gray-900 dark:text-white text-sm">{reg.grade}</td>
+                                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">
+                                      {new Date(reg.createdAt).toLocaleString('id-ID')}
+                                    </td>
+                                    <td className="px-4 py-3 space-x-2 whitespace-nowrap">
+                                      <button
+                                        onClick={() => startEditRegistration(reg)}
+                                        className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium text-sm"
+                                      >
+                                        Edit
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteRegistration(reg._id)}
+                                        className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium text-sm"
+                                      >
+                                        Delete
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
-            </select>
-          </div>
-          <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-            <table className="w-full">
-              <thead className="bg-gray-50 dark:bg-gray-800">
-                <tr>
-                  <th
-                    className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
-                    onClick={() => handleRegistrationSort('fullName')}
-                  >
-                    <div className="flex items-center gap-2">
-                      Name
-                      <SortIcon active={registrationSortKey === 'fullName'} direction={registrationSortDirection} />
-                    </div>
-                  </th>
-                  <th
-                    className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
-                    onClick={() => handleRegistrationSort('phoneNumber')}
-                  >
-                    <div className="flex items-center gap-2">
-                      Phone
-                      <SortIcon active={registrationSortKey === 'phoneNumber'} direction={registrationSortDirection} />
-                    </div>
-                  </th>
-                  <th
-                    className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
-                    onClick={() => handleRegistrationSort('grade')}
-                  >
-                    <div className="flex items-center gap-2">
-                      Grade
-                      <SortIcon active={registrationSortKey === 'grade'} direction={registrationSortDirection} />
-                    </div>
-                  </th>
-                  <th
-                    className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
-                    onClick={() => handleRegistrationSort('sessionName')}
-                  >
-                    <div className="flex items-center gap-2">
-                      Session
-                      <SortIcon active={registrationSortKey === 'sessionName'} direction={registrationSortDirection} />
-                    </div>
-                  </th>
-                  <th
-                    className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
-                    onClick={() => handleRegistrationSort('sessionDate')}
-                  >
-                    <div className="flex items-center gap-2">
-                      Date/Time
-                      <SortIcon active={registrationSortKey === 'sessionDate'} direction={registrationSortDirection} />
-                    </div>
-                  </th>
-                  <th
-                    className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors select-none"
-                    onClick={() => handleRegistrationSort('createdAt')}
-                  >
-                    <div className="flex items-center gap-2">
-                      Registered
-                      <SortIcon active={registrationSortKey === 'createdAt'} direction={registrationSortDirection} />
-                    </div>
-                  </th>
-                  <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium text-sm">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {getSortedRegistrations().map((reg) => (
-                  <tr key={reg._id} className="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                    <td className="px-4 py-3 text-gray-900 dark:text-white text-sm font-medium">{reg.fullName}</td>
-                    <td className="px-4 py-3 text-sm">
-                      <a
-                        href={`https://wa.me/${reg.phoneNumber.replace(/[^0-9]/g, '')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline"
-                      >
-                        {reg.phoneNumber}
-                      </a>
-                    </td>
-                    <td className="px-4 py-3 text-gray-900 dark:text-white text-sm font-medium">{reg.grade}</td>
-                    <td className="px-4 py-3 text-gray-900 dark:text-white text-sm">{reg.sessionName}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-sm">
-                      {new Date(reg.sessionDate).toLocaleDateString('id-ID')} {reg.sessionTime}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-sm">
-                      {new Date(reg.createdAt).toLocaleString('id-ID')}
-                    </td>
-                    <td className="px-4 py-3 space-x-2">
-                      <button
-                        onClick={() => startEditRegistration(reg)}
-                        className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium text-sm"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteRegistration(reg._id)}
-                        className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium text-sm"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </main>
