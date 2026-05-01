@@ -41,10 +41,18 @@ const RegistrationSchema = new Schema<IRegistration>(
   }
 );
 
-// Removed unique index to allow multiple students to register with same phone number and session
+// No unique indexes — multiple students may share the same phone number and session.
+// syncIndexes() is called after model creation to drop any stale unique indexes
+// that may still exist in MongoDB from a previous schema version.
 
 const Registration: Model<IRegistration> =
   mongoose.models.Registration ||
   mongoose.model<IRegistration>('Registration', RegistrationSchema);
+
+// Drop stale indexes from the DB so they match the current schema.
+// This is a no-op if indexes are already in sync.
+Registration.syncIndexes().catch((err) =>
+  console.warn('[Registration] syncIndexes warning:', err)
+);
 
 export default Registration;

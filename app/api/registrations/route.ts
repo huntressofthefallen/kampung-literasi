@@ -127,6 +127,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Check for duplicate names within this session
+    const incomingNames = students.map((s: { fullName: string; grade: string }) =>
+      s.fullName.trim().toLowerCase()
+    );
+
+    // Check duplicates among the submitted students themselves
+    const uniqueIncoming = new Set(incomingNames);
+    if (uniqueIncoming.size !== incomingNames.length) {
+      return NextResponse.json(
+        { success: false, error: 'Terdapat nama siswa yang duplikat dalam formulir pendaftaran ini' },
+        { status: 409 }
+      );
+    }
+
+    // Check against names already registered in the same session
+    const existingInSession = await Registration.find(
+      { sessionId },
+      { fullName: 1 }
+    ).lean();
+
+    const existingNames = existingInSession.map((r: any) =>
+      r.fullName.trim().toLowerCase()
+    );
+
+    const duplicates = incomingNames.filter((name: string) => existingNames.includes(name));
+    if (duplicates.length > 0) {
+      const displayNames = students
+        .filter((s: { fullName: string; grade: string }) =>
+          duplicates.includes(s.fullName.trim().toLowerCase())
+        )
+        .map((s: { fullName: string; grade: string }) => s.fullName)
+        .join(', ');
+      return NextResponse.json(
+        { success: false, error: `Nama berikut sudah terdaftar di sesi ini: ${displayNames}` },
+        { status: 409 }
+      );
+    }
+
     // Create registrations for all students
     const registrations = await Promise.all(
       students.map((student: { fullName: string; grade: string }) =>
@@ -150,6 +188,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, registrations, count: students.length }, { status: 201 });
   } catch (error: any) {
     console.error('Error creating registration:', error);
+
+    // Handle Mongoose validation errors
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map((e: any) => e.message);
+      return NextResponse.json(
+        { success: false, error: `Validasi gagal: ${messages.join(', ')}` },
+        { status: 400 }
+      );
+    }
 
     return NextResponse.json(
       { success: false, error: 'Gagal membuat pendaftaran' },

@@ -17,17 +17,34 @@ interface Student {
   grade: string;
 }
 
+interface Participant {
+  fullName: string;
+  grade: string;
+}
+
+interface SessionParticipants {
+  _id: string;
+  name: string;
+  date: string;
+  time: string;
+  limit: number;
+  currentRegistrations: number;
+  participants: Participant[];
+}
+
 export default function Home() {
   const [students, setStudents] = useState<Student[]>([{ fullName: '', grade: '' }]);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [selectedSession, setSelectedSession] = useState('');
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [sessionParticipants, setSessionParticipants] = useState<SessionParticipants[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
 
   useEffect(() => {
     fetchSessions();
+    fetchSessionParticipants();
 
     // Setup SSE connection for real-time updates via MongoDB Change Streams
     console.log('[Home] Connecting to SSE...');
@@ -45,6 +62,7 @@ export default function Home() {
       if (data.type === 'sessions' || data.type === 'registrations') {
         console.log('[Home] Refreshing sessions due to', data.type, 'change');
         fetchSessions();
+        fetchSessionParticipants();
       }
     };
 
@@ -71,20 +89,32 @@ export default function Home() {
     }
   };
 
+  const fetchSessionParticipants = async () => {
+    try {
+      const response = await fetch('/api/sessions/participants');
+      const data = await response.json();
+      if (data.success) {
+        setSessionParticipants(data.sessions);
+      }
+    } catch (error) {
+      console.error('Error fetching session participants:', error);
+    }
+  };
+
   const normalizePhoneNumber = (phone: string): string => {
     if (!phone || !phone.trim()) return phone;
-    
+
     // Remove all spaces, dashes, parentheses, and other non-numeric characters except +
     let cleaned = phone.replace(/[\s\-()]/g, '');
-    
+
     // If already in correct format, return as is
     if (cleaned.match(/^\+628\d+$/)) {
       return cleaned;
     }
-    
+
     // Remove any + symbols and leading zeros to work with just numbers
     cleaned = cleaned.replace(/\+/g, '');
-    
+
     // Handle different starting patterns
     if (cleaned.startsWith('62')) {
       // Already has country code (62xxx...)
@@ -96,7 +126,7 @@ export default function Home() {
       // Starts with 8 (8xxx...) - add +62
       return '+62' + cleaned;
     }
-    
+
     // If it doesn't match expected patterns, return original
     return phone;
   };
@@ -151,7 +181,7 @@ export default function Home() {
 
     // Normalize phone number before submission
     const normalizedPhone = normalizePhoneNumber(phoneNumber);
-    
+
     if (!normalizedPhone.startsWith('+62')) {
       setMessage('Nomor telepon tidak valid');
       setMessageType('error');
@@ -181,6 +211,7 @@ export default function Home() {
         setPhoneNumber('');
         setSelectedSession('');
         fetchSessions(); // Refresh session data
+        fetchSessionParticipants(); // Refresh name tables
       } else {
         setMessage(data.error || 'Pendaftaran gagal');
         setMessageType('error');
@@ -513,6 +544,107 @@ export default function Home() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Name Tables Section */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+        <div className="mb-6">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+            <svg className="w-7 h-7 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+            </svg>
+            Daftar Peserta
+          </h2>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">
+            Nama-nama peserta yang telah terdaftar untuk setiap jadwal
+          </p>
+        </div>
+
+        {sessionParticipants.length === 0 ? (
+          <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+            Belum ada jadwal tersedia
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {sessionParticipants.map((session) => {
+              const isFull = session.currentRegistrations >= session.limit;
+              const sessionDate = new Date(session.date).toLocaleDateString('id-ID', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              });
+              return (
+                <div
+                  key={session._id}
+                  className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden"
+                >
+                  {/* Card Header */}
+                  <div className={`px-5 py-4 border-b border-gray-200 dark:border-gray-700 ${isFull ? 'bg-red-50 dark:bg-red-900/20' : 'bg-blue-50 dark:bg-blue-900/20'}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h3 className="font-bold text-gray-900 dark:text-white text-base leading-snug">
+                          {session.name}
+                        </h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                          {sessionDate} • {session.time}
+                        </p>
+                      </div>
+                      <span
+                        className={`shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${isFull
+                            ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'
+                            : 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
+                          }`}
+                      >
+                        {session.currentRegistrations}/{session.limit}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Participant List */}
+                  <div className="px-5 py-3">
+                    {session.participants.length === 0 ? (
+                      <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4 italic">
+                        Belum ada peserta terdaftar
+                      </p>
+                    ) : (
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-gray-100 dark:border-gray-700">
+                            <th className="text-left py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide w-8">
+                              #
+                            </th>
+                            <th className="text-left py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                              Nama
+                            </th>
+                            <th className="text-left py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide w-16">
+                              Kelas
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                          {session.participants.map((p, idx) => (
+                            <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                              <td className="py-2 text-gray-400 dark:text-gray-500 text-xs">
+                                {idx + 1}
+                              </td>
+                              <td className="py-2 text-gray-900 dark:text-white font-medium">
+                                {p.fullName}
+                              </td>
+                              <td className="py-2 text-gray-500 dark:text-gray-400 text-xs">
+                                {p.grade}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </main>
   );
