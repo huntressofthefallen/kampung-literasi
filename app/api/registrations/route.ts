@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
-import Registration from '@/models/Registration';
 import Session from '@/models/Session';
+import mongoose from 'mongoose';
 import { broadcastUpdate } from '@/lib/sse';
 
 // Normalize phone number to +628XXXXXXXXX format
@@ -38,24 +38,23 @@ function normalizePhoneNumber(phone: string): string {
 export async function GET() {
   try {
     await dbConnect();
-    const registrations = await Registration.find({}).populate('sessionId');
+    const sessions = await Session.find({});
 
-    // Format the response with session details, skip registrations whose session was deleted
-    const formattedRegistrations = registrations
-      .filter((reg: any) => reg.sessionId != null)
-      .map((reg: any) => ({
+    const registrations = sessions.flatMap((session) =>
+      session.registrations.map((reg) => ({
         _id: reg._id,
         fullName: reg.fullName,
         phoneNumber: reg.phoneNumber,
         grade: reg.grade,
-        sessionId: reg.sessionId._id,
-        sessionName: reg.sessionId.name,
-        sessionDate: reg.sessionId.date,
-        sessionTime: reg.sessionId.time,
+        sessionId: session._id,
+        sessionName: session.name,
+        sessionDate: session.date,
+        sessionTime: session.time,
         createdAt: reg.createdAt,
-      }));
+      }))
+    );
 
-    return NextResponse.json({ success: true, registrations: formattedRegistrations });
+    return NextResponse.json({ success: true, registrations });
   } catch (error) {
     console.error('Error fetching registrations:', error);
     return NextResponse.json(
@@ -118,7 +117,7 @@ export async function POST(request: NextRequest) {
 
     // Check if session has enough capacity for all students (unless bypassLimit is true)
     if (!bypassLimit) {
-      const availableSpots = session.limit - session.currentRegistrations;
+      const availableSpots = session.limit - session.registrations.length;
       if (availableSpots < students.length) {
         return NextResponse.json(
           { success: false, error: `Sesi hanya memiliki ${availableSpots} tempat tersedia, tetapi Anda mencoba mendaftarkan ${students.length} siswa` },
@@ -142,12 +141,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check against names already registered in the same session
-    const existingInSession = await Registration.find(
-      { sessionId },
-      { fullName: 1 }
-    ).lean();
-
-    const existingNames = existingInSession.map((r: any) =>
+    const existingNames = session.registrations.map((r) =>
       r.fullName.trim().toLowerCase()
     );
 
@@ -165,27 +159,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create registrations for all students
-    const registrations = await Promise.all(
-      students.map((student: { fullName: string; grade: string }) =>
-        Registration.create({
-          fullName: student.fullName,
-          phoneNumber: normalizedPhoneNumber,
-          grade: student.grade,
-          sessionId,
-        })
-      )
-    );
+    // Build new registration entries with pre-assigned IDs and timestamps
+    const now = new Date();
+    const newEntries = students.map((student: { fullName: string; grade: string }) => ({
+      _id: new mongoose.Types.ObjectId(),
+      fullName: student.fullName,
+      phoneNumber: normalizedPhoneNumber,
+      grade: student.grade,
+      createdAt: now,
+      updatedAt: now,
+    }));
 
-    // Update session count by the number of students
+    // Push entries into the session's registrations array
     await Session.findByIdAndUpdate(sessionId, {
-      $inc: { currentRegistrations: students.length },
+      $push: { registrations: { $each: newEntries } },
     });
 
-    // Broadcast update to all connected clients
     broadcastUpdate('all');
 
-    return NextResponse.json({ success: true, registrations, count: students.length }, { status: 201 });
+    return NextResponse.json({ success: true, registrations: newEntries, count: newEntries.length }, { status: 201 });
   } catch (error: any) {
     console.error('Error creating registration:', error);
 
@@ -209,29 +201,19 @@ export async function DELETE() {
   try {
     await dbConnect();
 
-    // Get all registrations to update session counts
-    const registrations = await Registration.find({});
+    // Count total registrations across all sessions before clearing
+    const sessions = await Session.find({}, { registrations: 1 });
+    const deletedCount = sessions.reduce((sum, s) => sum + s.registrations.length, 0);
 
-    // Group registrations by session
-    const sessionCounts: { [key: string]: number } = {};
-    registrations.forEach((reg: any) => {
-      const sessionId = reg.sessionId.toString();
-      sessionCounts[sessionId] = (sessionCounts[sessionId] || 0) + 1;
-    });
+    // Clear the embedded registrations array from every session
+    await Session.updateMany({}, { $set: { registrations: [] } });
 
-    // Delete all registrations
-    await Registration.deleteMany({});
-
-    // Reset session registration counts
-    await Session.updateMany({}, { $set: { currentRegistrations: 0 } });
-
-    // Broadcast update to all connected clients
     broadcastUpdate('all');
 
     return NextResponse.json({
       success: true,
       message: 'Semua pendaftaran berhasil dihapus',
-      deletedCount: registrations.length
+      deletedCount,
     });
   } catch (error) {
     console.error('Error deleting all registrations:', error);

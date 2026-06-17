@@ -208,9 +208,11 @@ export default function AdminPage() {
         console.log('[Admin] Refreshing data due to', data.type, 'change');
         fetchData();
 
-        // Show alert based on the event type
+        // Show alert — use functional setState to avoid stale closure on alertIdCounter
         if (data.type === 'registrations') {
-          addAlert('info', 'Data pendaftaran telah diperbarui');
+          const alertId = Date.now();
+          setAlerts((prev) => [...prev, { id: alertId, type: 'info', message: 'Data pendaftaran telah diperbarui' }]);
+          setTimeout(() => setAlerts((prev) => prev.filter((a) => a.id !== alertId)), 5000);
         }
       }
     };
@@ -238,12 +240,7 @@ export default function AdminPage() {
 
       if (sessionsData.success) setSessions(sessionsData.sessions);
       if (registrationsData.success) {
-        // Ensure registrations have sessionId field
-        const mappedRegistrations = registrationsData.registrations.map((reg: any) => ({
-          ...reg,
-          sessionId: reg.sessionId || reg._id,
-        }));
-        setRegistrations(mappedRegistrations);
+        setRegistrations(registrationsData.registrations);
       }
     } catch (error) {
       console.error('Error fetching data:', error);

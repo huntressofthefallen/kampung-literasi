@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
-import Registration from '@/models/Registration';
 import Session from '@/models/Session';
 import { broadcastUpdate } from '@/lib/sse';
+
+// Normalize phone number to +628XXXXXXXXX format
+function normalizePhoneNumber(phone: string): string {
+  if (!phone || !phone.trim()) return phone;
+  let cleaned = phone.replace(/[\s\-()]/g, '');
+  if (cleaned.match(/^\+628\d+$/)) return cleaned;
+  cleaned = cleaned.replace(/\+/g, '');
+  if (cleaned.startsWith('62')) return '+' + cleaned;
+  if (cleaned.startsWith('0')) return '+62' + cleaned.substring(1);
+  if (cleaned.startsWith('8')) return '+62' + cleaned;
+  return phone;
+}
 
 export async function PUT(
   request: NextRequest,
@@ -22,21 +33,30 @@ export async function PUT(
       );
     }
 
-    // Find the registration
-    const registration = await Registration.findById(id);
-    if (!registration) {
+    // Normalize and validate phone number
+    const normalizedPhone = normalizePhoneNumber(phoneNumber);
+    if (!normalizedPhone.startsWith('+62')) {
+      return NextResponse.json(
+        { success: false, error: 'Format nomor telepon tidak valid' },
+        { status: 400 }
+      );
+    }
+
+    // Find the session currently containing this registration
+    const currentSession = await Session.findOne({ 'registrations._id': id });
+    if (!currentSession) {
       return NextResponse.json(
         { success: false, error: 'Pendaftaran tidak ditemukan' },
         { status: 404 }
       );
     }
 
-    const oldSessionId = registration.sessionId.toString();
+    const oldSessionId = currentSession._id.toString();
     const newSessionId = sessionId;
+    const isSessionChanging = oldSessionId !== newSessionId;
 
-    // If session changed, update registration counts
-    if (oldSessionId !== newSessionId) {
-      // Check if new session exists and has space
+    if (isSessionChanging) {
+      // Find and validate the new session
       const newSession = await Session.findById(newSessionId);
       if (!newSession) {
         return NextResponse.json(
@@ -45,39 +65,74 @@ export async function PUT(
         );
       }
 
-      // Only check capacity limit if bypassLimit is not true
-      if (!bypassLimit && newSession.currentRegistrations >= newSession.limit) {
+      // Check capacity in new session (unless bypassLimit)
+      if (!bypassLimit && newSession.registrations.length >= newSession.limit) {
         return NextResponse.json(
           { success: false, error: 'Sesi sudah penuh' },
           { status: 400 }
         );
       }
 
-      // Decrease old session count
-      await Session.findByIdAndUpdate(oldSessionId, {
-        $inc: { currentRegistrations: -1 },
-      });
+      // Check for duplicate name in the new session
+      const duplicateInNewSession = newSession.registrations.some(
+        (r) => r.fullName.trim().toLowerCase() === fullName.trim().toLowerCase()
+      );
+      if (duplicateInNewSession) {
+        return NextResponse.json(
+          { success: false, error: `Nama "${fullName}" sudah terdaftar di sesi ini` },
+          { status: 409 }
+        );
+      }
 
-      // Increase new session count
-      await Session.findByIdAndUpdate(newSessionId, {
-        $inc: { currentRegistrations: 1 },
+      // Pull from old session, push to new session
+      await Session.findByIdAndUpdate(oldSessionId, {
+        $pull: { registrations: { _id: id } },
       });
+      await Session.findByIdAndUpdate(newSessionId, {
+        $push: {
+          registrations: {
+            _id: id,
+            fullName,
+            phoneNumber: normalizedPhone,
+            grade,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        },
+      });
+    } else {
+      // Same session — check for duplicate name excluding this registration
+      const duplicateInSession = currentSession.registrations.some(
+        (r) =>
+          r._id!.toString() !== id &&
+          r.fullName.trim().toLowerCase() === fullName.trim().toLowerCase()
+      );
+      if (duplicateInSession) {
+        return NextResponse.json(
+          { success: false, error: `Nama "${fullName}" sudah terdaftar di sesi ini` },
+          { status: 409 }
+        );
+      }
+
+      // Update the subdocument in-place
+      await Session.findOneAndUpdate(
+        { 'registrations._id': id },
+        {
+          $set: {
+            'registrations.$.fullName': fullName,
+            'registrations.$.phoneNumber': normalizedPhone,
+            'registrations.$.grade': grade,
+            'registrations.$.updatedAt': new Date(),
+          },
+        }
+      );
     }
 
-    // Update the registration
-    const updatedRegistration = await Registration.findByIdAndUpdate(
-      id,
-      { fullName, phoneNumber, grade, sessionId },
-      { new: true, runValidators: true }
-    );
-
-    // Broadcast update to all connected clients
     broadcastUpdate('all');
 
     return NextResponse.json({
       success: true,
       message: 'Pendaftaran berhasil diperbarui',
-      registration: updatedRegistration,
     });
   } catch (error: any) {
     console.error('Error updating registration:', error);
@@ -96,29 +151,24 @@ export async function DELETE(
     await dbConnect();
     const { id } = await params;
 
-    // Find the registration
-    const registration = await Registration.findById(id);
-    if (!registration) {
+    // Pull the registration subdocument from whichever session contains it
+    const session = await Session.findOneAndUpdate(
+      { 'registrations._id': id },
+      { $pull: { registrations: { _id: id } } }
+    );
+
+    if (!session) {
       return NextResponse.json(
         { success: false, error: 'Pendaftaran tidak ditemukan' },
         { status: 404 }
       );
     }
 
-    // Decrease session registration count
-    await Session.findByIdAndUpdate(registration.sessionId, {
-      $inc: { currentRegistrations: -1 },
-    });
-
-    // Delete the registration
-    await Registration.findByIdAndDelete(id);
-
-    // Broadcast update to all connected clients
     broadcastUpdate('all');
 
     return NextResponse.json({
       success: true,
-      message: 'Pendaftaran berhasil dihapus'
+      message: 'Pendaftaran berhasil dihapus',
     });
   } catch (error) {
     console.error('Error deleting registration:', error);

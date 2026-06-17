@@ -1,16 +1,46 @@
 import mongoose, { Schema, Model } from 'mongoose';
 
+export interface IRegistrationEntry {
+  _id?: mongoose.Types.ObjectId;
+  fullName: string;
+  phoneNumber: string;
+  grade: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
 export interface ISession {
   _id?: mongoose.Types.ObjectId;
   name: string;
   date: Date;
   time: string;
   limit: number;
-  currentRegistrations: number;
   isActive: boolean;
+  registrations: IRegistrationEntry[];
   createdAt?: Date;
   updatedAt?: Date;
 }
+
+const RegistrationEntrySchema = new Schema<IRegistrationEntry>(
+  {
+    fullName: {
+      type: String,
+      required: [true, 'Full name is required'],
+      trim: true,
+    },
+    phoneNumber: {
+      type: String,
+      required: [true, 'Phone number is required'],
+      trim: true,
+    },
+    grade: {
+      type: String,
+      required: [true, 'Grade is required'],
+      enum: ['SD 1', 'SD 2', 'SD 3', 'SD 4', 'SD 5', 'SD 6'],
+    },
+  },
+  { timestamps: true }
+);
 
 const SessionSchema = new Schema<ISession>(
   {
@@ -32,14 +62,13 @@ const SessionSchema = new Schema<ISession>(
       required: [true, 'Session limit is required'],
       min: [1, 'Limit must be at least 1'],
     },
-    currentRegistrations: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
     isActive: {
       type: Boolean,
       default: true,
+    },
+    registrations: {
+      type: [RegistrationEntrySchema],
+      default: [],
     },
   },
   {

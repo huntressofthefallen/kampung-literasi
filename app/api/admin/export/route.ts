@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
-import Registration from '@/models/Registration';
+import Session from '@/models/Session';
 import ExcelJS from 'exceljs';
 import Papa from 'papaparse';
 
@@ -12,22 +12,23 @@ export async function GET(request: NextRequest) {
 
     await dbConnect();
 
-    // Build query filter
-    const query = sessionId ? { sessionId } : {};
-    const registrations = await Registration.find(query).populate('sessionId');
+    // Fetch the relevant sessions
+    const sessions = sessionId
+      ? await Session.find({ _id: sessionId })
+      : await Session.find({});
 
-    // Format data for export, skipping registrations whose session was deleted
-    const data = registrations
-      .filter((reg: any) => reg.sessionId != null)
-      .map((reg: any) => ({
+    // Flatten embedded registrations into a flat export-ready array
+    const data = sessions.flatMap((session) =>
+      session.registrations.map((reg) => ({
         'Full Name': reg.fullName,
         'Phone Number': reg.phoneNumber,
         'Grade': reg.grade,
-        'Session': reg.sessionId.name,
-        'Session Date': new Date(reg.sessionId.date).toLocaleDateString(),
-        'Session Time': reg.sessionId.time,
-        'Registered At': new Date(reg.createdAt).toLocaleString(),
-      }));
+        'Session': session.name,
+        'Session Date': new Date(session.date).toLocaleDateString(),
+        'Session Time': session.time,
+        'Registered At': new Date(reg.createdAt!).toLocaleString(),
+      }))
+    );
 
     if (format === 'excel') {
       // Create Excel workbook

@@ -3,6 +3,19 @@ import dbConnect from '@/lib/mongodb';
 import Session from '@/models/Session';
 import { broadcastUpdate } from '@/lib/sse';
 
+function formatSession(s: any) {
+  return {
+    _id: s._id,
+    name: s.name,
+    date: s.date,
+    time: s.time,
+    limit: s.limit,
+    isActive: s.isActive,
+    currentRegistrations: s.registrations.length,
+    createdAt: s.createdAt,
+  };
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -27,7 +40,7 @@ export async function PATCH(
 
     broadcastUpdate('sessions');
 
-    return NextResponse.json({ success: true, session: updatedSession });
+    return NextResponse.json({ success: true, session: formatSession(updatedSession) });
   } catch (error) {
     console.error('Error toggling session:', error);
     return NextResponse.json(
@@ -65,10 +78,9 @@ export async function PUT(
       );
     }
 
-    // Broadcast update to all connected clients
     broadcastUpdate('sessions');
 
-    return NextResponse.json({ success: true, session });
+    return NextResponse.json({ success: true, session: formatSession(session) });
   } catch (error) {
     console.error('Error updating session:', error);
     return NextResponse.json(
@@ -94,7 +106,7 @@ export async function DELETE(
       );
     }
 
-    // Broadcast update to all connected clients
+    // Registrations are embedded — deleted automatically with the session document.
     broadcastUpdate('sessions');
 
     return NextResponse.json({ success: true });

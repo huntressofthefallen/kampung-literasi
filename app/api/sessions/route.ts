@@ -10,7 +10,19 @@ export async function GET(request: NextRequest) {
     const showAll = searchParams.get('all') === 'true';
     const query = showAll ? {} : { isActive: true };
     const sessions = await Session.find(query).sort({ date: 1 });
-    return NextResponse.json({ success: true, sessions });
+
+    const formattedSessions = sessions.map((s) => ({
+      _id: s._id,
+      name: s.name,
+      date: s.date,
+      time: s.time,
+      limit: s.limit,
+      isActive: s.isActive,
+      currentRegistrations: s.registrations.length,
+      createdAt: s.createdAt,
+    }));
+
+    return NextResponse.json({ success: true, sessions: formattedSessions });
   } catch (error) {
     console.error('Error fetching sessions:', error);
     return NextResponse.json(
@@ -38,13 +50,24 @@ export async function POST(request: NextRequest) {
       date: new Date(date),
       time,
       limit: parseInt(limit, 10),
-      currentRegistrations: 0,
+      registrations: [],
     });
 
-    // Broadcast update to all connected clients
     broadcastUpdate('sessions');
 
-    return NextResponse.json({ success: true, session }, { status: 201 });
+    return NextResponse.json({
+      success: true,
+      session: {
+        _id: session._id,
+        name: session.name,
+        date: session.date,
+        time: session.time,
+        limit: session.limit,
+        isActive: session.isActive,
+        currentRegistrations: 0,
+        createdAt: session.createdAt,
+      },
+    }, { status: 201 });
   } catch (error) {
     console.error('Error creating session:', error);
     return NextResponse.json(
